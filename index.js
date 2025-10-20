@@ -63,6 +63,8 @@
 
       // Called when the custom element is added to the DOM.
       connectedCallback() {
+         console.log("VanillaCounter connected");
+         this.innerHTML = "<b>Counter initialized</b>";
          this.decrementButton.addEventListener('click', this.decrement);
          this.incrementButton.addEventListener('click', this.increment);
       }
