@@ -37,10 +37,24 @@ class IncidentElement extends HTMLElement {
     ];
 
     // Build HTML only for fields that have a value
-    const rows = fields
-      .filter((f) => i[f] !== null && i[f] !== undefined && i[f] !== "")
-      .map((f) => `<div><strong>${f}:</strong> ${i[f]}</div>`)
-      .join("");
+  const rows = fields
+    .map((f) => {
+      if (!i[f]) return "";
+
+      // Special case: make the incident title a link
+      if (f === "incident") {
+        return `<div><strong>${f}:</strong> 
+                  <a href="/incidents/${i.id}" target="_blank">
+                    ${i[f]}
+                  </a>
+                </div>`;
+      }
+
+      return `<div><strong>${f}:</strong> ${i[f]}</div>`;
+    })
+    .join("");
+
+
 
     return `<div class="incident-entry" style="margin-bottom:1em; padding:0.5em; border:1px solid #ccc;">
               ${rows}
