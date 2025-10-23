@@ -20,15 +20,15 @@ class IncidentElement extends HTMLElement {
   renderIncident(i) {
   const fields = [
     "id",
-    "modifiedDate",
     "incident",
     "description",
     "location",
     "opened",
+    "modifiedDate",
+    "updated",
+    "closed",
     "classification",
     "countries",
-    "closed",
-    "updated",
     "mGRS",
     "type",
     "longitudeDMS",
