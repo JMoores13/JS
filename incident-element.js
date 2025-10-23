@@ -18,33 +18,31 @@ class IncidentElement extends HTMLElement {
   }
 
   renderIncident(i) {
-    // List of fields you want to display
-    const fields = [
-      "id",
-      "modifiedDate",
-      "incident",
-      "description",
-      "location",
-      "opened",
-      "classification",
-      "countries",
-      "closed",
-      "updated",
-      "mGRS",
-      "type",
-      "longitudeDMS",
-      "latitudeDMS"
-    ];
+  const fields = [
+    "id",
+    "modifiedDate",
+    "incident",
+    "description",
+    "location",
+    "opened",
+    "classification",
+    "countries",
+    "closed",
+    "updated",
+    "mGRS",
+    "type",
+    "longitudeDMS",
+    "latitudeDMS"
+  ];
 
-    // Build HTML only for fields that have a value
   const rows = fields
     .map((f) => {
       if (!i[f]) return "";
 
-      // Special case: make the incident title a link
-      if (f === "incident") {
+      // Special case: make the incident title a link using viewableURL
+      if (f === "incident" && i.viewableURL) {
         return `<div><strong>${f}:</strong> 
-                  <a href="/incidents/${i.id}" target="_blank">
+                  <a href="${i.viewableURL}" target="_blank">
                     ${i[f]}
                   </a>
                 </div>`;
@@ -54,12 +52,10 @@ class IncidentElement extends HTMLElement {
     })
     .join("");
 
-
-
-    return `<div class="incident-entry" style="margin-bottom:1em; padding:0.5em; border:1px solid #ccc;">
-              ${rows}
-            </div>`;
-  }
+  return `<div class="incident-entry" style="margin-bottom:1em; padding:0.5em; border:1px solid #ccc;">
+            ${rows}
+          </div>`;
+}
 }
 
 customElements.define("incident-element", IncidentElement);
