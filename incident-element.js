@@ -6,6 +6,7 @@ class IncidentElement extends HTMLElement {
     this.pageSize = 5;
     this.allItems = [];
     this.searchQuery = "";
+    this.searchDebounceTimer = null;
   }
 
   async connectedCallback() {
@@ -150,9 +151,13 @@ class IncidentElement extends HTMLElement {
   });
 
   this.querySelector("#search-input").addEventListener("input", (e) => {
-    this.searchQuery = e.target.value;
-    this.currentPage = 0;
-    this.render();
+    clearTimeout(this.searchDebounceTimer);
+    const value = e.target.value;
+    this.searchDebounceTimer = setTimeout(() => {
+      this.searchQuery = value;
+      this.currentPage = 0;
+      this.render();
+    }, 250);
   });
 
   this.querySelector("#page-size").addEventListener("change", (e) => {
