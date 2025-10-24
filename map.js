@@ -70,7 +70,7 @@ connectedCallback() {
         bounds.push([lat, lng]);
       });
 
-      if (bounds.length) map.fitBounds(bounds);
+      
     } catch (e) {
       console.error("Failed to load incidents:", e);
       this.querySelector("#map").innerHTML = "<p>Error loading map data</p>";
