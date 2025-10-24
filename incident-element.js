@@ -26,7 +26,7 @@ class IncidentElement extends HTMLElement {
  render() {
   const start = this.currentPage * this.pageSize;
   const end = start + this.pageSize;
-  const visibleItems = this.allItems.filter((i) => {
+  const filteredItems = this.allItems.filter((i) => {
     const q = this.searchQuery.toLowerCase();
     return (
       i.incident?.toLowerCase().includes(q) ||
@@ -99,7 +99,7 @@ class IncidentElement extends HTMLElement {
         margin-bottom: 1em;
       }
       #search-input {
-        width: 100%
+        width: 100%;
         padding: 0.5em;
         font-size: 1em;
         border: 1px solid #ccc;
