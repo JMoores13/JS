@@ -23,10 +23,9 @@ class IncidentElement extends HTMLElement {
     this.innerHTML = `
      <style>
   .incident-entry {
-    margin-bottom: 1em;
-    padding: 0.5em;
-    border: 1px solid #ccc;
-  }
+  padding: 0.75em 0;
+  border-bottom: 1px solid #ccc;
+}
   .incident-title {
     font-size: 1.25em;
     font-weight: bold;
