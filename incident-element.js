@@ -34,7 +34,7 @@ class IncidentElement extends HTMLElement {
       i.location?.toLowerCase().includes(q) ||
       i.countries?.toLowerCase().includes(q) ||
       i.statusOfIncident?.key?.toLowerCase().includes(q) ||
-      i.creator?.name?.toLowerCase().includes(q) ||
+      i.creator?.name?.toLowerCase().includes(q)
     );
   });
   const totalPages = Math.ceil(filteredItems.length / this.pageSize);
