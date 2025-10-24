@@ -3,18 +3,19 @@ class IncidentMapElement extends HTMLElement {
     super();
   }
 
-  async connectedCallback() {
-    this.innerHTML = `
-      <style>
-        #map { height: 500px; width: 100%; }
-        .leaflet-container { font: inherit; }
-      </style>
-      <div id="map">Loading map...</div>
-    `;
+connectedCallback() {
+  this.innerHTML = `
+    <style>
+      #map { height: 500px; width: 100%; }
+      .leaflet-container { font: inherit; }
+    </style>
+    <div id="map">Loading map...</div>
+  `;
 
-    await this.loadLeaflet();
+  this.loadLeaflet().then(() => {
     requestAnimationFrame(() => this.renderMap());
-  }
+  });
+}
 
   async loadLeaflet() {
     if (!window.L) {
