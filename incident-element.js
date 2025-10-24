@@ -5,6 +5,7 @@ class IncidentElement extends HTMLElement {
     this.currentPage = 0;
     this.pageSize = 5;
     this.allItems = [];
+    this.searchQuery = "";
   }
 
   async connectedCallback() {
@@ -25,8 +26,19 @@ class IncidentElement extends HTMLElement {
  render() {
   const start = this.currentPage * this.pageSize;
   const end = start + this.pageSize;
-  const visibleItems = this.allItems.slice(start, end);
-  const totalPages = Math.ceil(this.allItems.length / this.pageSize);
+  const visibleItems = this.allItems.filter((i) => {
+    const q = this.searchQuery.toLowerCase();
+    return (
+      i.incident?.toLowerCase().includes(q) ||
+      i.incident?.toLowerCase().includes(q) ||
+      i.incident?.toLowerCase().includes(q) ||
+      i.incident?.toLowerCase().includes(q) ||
+      i.incident?.toLowerCase().includes(q) ||
+      i.incident?.toLowerCase().includes(q) ||
+    );
+  });
+  const totalPages = Math.ceil(filteredItems.length / this.pageSize);
+  const visibleItems = filteredItems.slice(start, end);
 
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => {
     const activeClass = i === this.currentPage ? "active-page" : "";
@@ -83,9 +95,23 @@ class IncidentElement extends HTMLElement {
       .page-size-select {
         margin-left: 1em;
       }
+      .search-bar {
+        margin-bottom: 1em;
+      }
+      #search-input {
+        width: 100%
+        padding: 0.5em;
+        font-size: 1em;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
     </style>
 
     <h2>Incident List</h2>
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="Search" value="${this.searchQuery}"/>
+    </div>
+    
     ${visibleItems.map((i) => this.renderIncident(i)).join("")}
 
     <div class="pagination">
@@ -119,6 +145,12 @@ class IncidentElement extends HTMLElement {
       this.currentPage = parseInt(btn.dataset.page, 10);
       this.render();
     });
+  });
+
+  this.querySelector("#search-input").addEventListener("input", (e) => {
+    this.searchQuery = e.target.value;
+    this.currentPage = 0;
+    this.render();
   });
 
   this.querySelector("#page-size").addEventListener("change", (e) => {
