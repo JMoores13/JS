@@ -46,7 +46,7 @@ class IncidentElement extends HTMLElement {
   .toggle-link {
     cursor: pointer;
     color: #007bff;
-    text-decoration: underline;
+    text-decoration: none;
   }
 </style>
       <h2>Incident List</h2>
