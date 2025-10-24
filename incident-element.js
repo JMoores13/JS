@@ -22,104 +22,111 @@ class IncidentElement extends HTMLElement {
     }
   }
 
-  render() {
-    const start = this.currentPage * this.pageSize;
-    const end = start + this.pageSize;
-    const visibleItems = this.allItems.slice(start, end);
-    const totalPages = Math.ceil(this.allItems.length / this.pageSize);
+ render() {
+  const start = this.currentPage * this.pageSize;
+  const end = start + this.pageSize;
+  const visibleItems = this.allItems.slice(start, end);
+  const totalPages = Math.ceil(this.allItems.length / this.pageSize);
 
-    this.innerHTML = `
-      <style>
-        .incident-entry {
-          padding: 0.75em 0;
-          border-bottom: 1px solid #ccc;
-        }
-        .incident-title {
-          font-size: 1.25em;
-          font-weight: bold;
-          margin-bottom: 0.5em;
-        }
-        .incident-description {
-          margin-top: 0.5em;
-        }
-        .incident-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0.5em 1em;
-        }
-        .incident-grid div {
-          display: flex;
-          flex-direction: column;
-        }
-        .toggle-link {
-          cursor: pointer;
-          color: #007bff;
-          text-decoration: none;
-        }
-        .pagination {
-          margin-top: 1em;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .page-btn {
-          padding: 0.5em 1em;
-          background: #f0f0f0;
-          border: 1px solid #ccc;
-          cursor: pointer;
-        }
-        .page-size-select {
-          margin-left: 1em;
-        }
-      </style>
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => {
+    const activeClass = i === this.currentPage ? "active-page" : "";
+    return `<button class="page-number ${activeClass}" data-page="${i}">${i + 1}</button>`;
+  }).join("");
 
-      <h2>Incident List</h2>
-      ${visibleItems.map((i) => this.renderIncident(i)).join("")}
+  this.innerHTML = `
+    <style>
+      .incident-entry {
+        padding: 0.75em 0;
+        border-bottom: 1px solid #ccc;
+      }
+      .incident-title {
+        font-size: 1.25em;
+        font-weight: bold;
+        margin-bottom: 0.5em;
+      }
+      .incident-description {
+        margin-top: 0.5em;
+      }
+      .incident-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5em 1em;
+      }
+      .incident-grid div {
+        display: flex;
+        flex-direction: column;
+      }
+      .toggle-link {
+        cursor: pointer;
+        color: #007bff;
+        text-decoration: none;
+      }
+      .pagination {
+        margin-top: 1em;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .page-number {
+        margin: 0 0.25em;
+        padding: 0.4em 0.8em;
+        background: #f0f0f0;
+        border: 1px solid #ccc;
+        cursor: pointer;
+      }
+      .active-page {
+        background: #007bff;
+        color: white;
+        font-weight: bold;
+      }
+      .page-size-select {
+        margin-left: 1em;
+      }
+    </style>
 
-      <div class="pagination">
-        <div>
-          ${this.currentPage > 0 ? `<button class="page-btn" data-dir="prev">Previous</button>` : ""}
-          ${this.currentPage < totalPages - 1 ? `<button class="page-btn" data-dir="next">Next</button>` : ""}
-        </div>
-        <div>
-          <label for="page-size">Items per page:</label>
-          <select id="page-size" class="page-size-select">
-            <option value="5" ${this.pageSize === 5 ? "selected" : ""}>5</option>
-            <option value="10" ${this.pageSize === 10 ? "selected" : ""}>10</option>
-            <option value="15" ${this.pageSize === 15 ? "selected" : ""}>15</option>
-          </select>
-        </div>
+    <h2>Incident List</h2>
+    ${visibleItems.map((i) => this.renderIncident(i)).join("")}
+
+    <div class="pagination">
+      <div>${pageNumbers}</div>
+      <div>
+        <label for="page-size">Items per page:</label>
+        <select id="page-size" class="page-size-select">
+          <option value="5" ${this.pageSize === 5 ? "selected" : ""}>5</option>
+          <option value="10" ${this.pageSize === 10 ? "selected" : ""}>10</option>
+          <option value="15" ${this.pageSize === 15 ? "selected" : ""}>15</option>
+        </select>
       </div>
-    `;
+    </div>
+  `;
 
-    this.querySelectorAll(".toggle-link").forEach((el) => {
-      el.addEventListener("click", (e) => {
-        e.preventDefault();
-        const id = el.dataset.id;
-        if (this.expandedIds.has(id)) {
-          this.expandedIds.delete(id);
-        } else {
-          this.expandedIds.add(id);
-        }
-        this.render();
-      });
-    });
-
-    this.querySelectorAll(".page-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const dir = btn.dataset.dir;
-        this.currentPage += dir === "next" ? 1 : -1;
-        this.render();
-      });
-    });
-
-    this.querySelector("#page-size").addEventListener("change", (e) => {
-      this.pageSize = parseInt(e.target.value, 10);
-      this.currentPage = 0;
+  this.querySelectorAll(".toggle-link").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      const id = el.dataset.id;
+      if (this.expandedIds.has(id)) {
+        this.expandedIds.delete(id);
+      } else {
+        this.expandedIds.add(id);
+      }
       this.render();
     });
-  }
+  });
 
+  this.querySelectorAll(".page-number").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      this.currentPage = parseInt(btn.dataset.page, 10);
+      this.render();
+    });
+  });
+
+  this.querySelector("#page-size").addEventListener("change", (e) => {
+    this.pageSize = parseInt(e.target.value, 10);
+    this.currentPage = 0;
+    this.render();
+  });
+}
   renderIncident(i) {
     const isExpanded = this.expandedIds.has(String(i.id));
     const capitalize = (str) =>
