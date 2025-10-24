@@ -22,7 +22,7 @@ class IncidentElement extends HTMLElement {
     "id",
     "incident",
     "description",
-    "author",
+    "creator",
     "location",
     "opened",
     "modifiedDate",
@@ -36,22 +36,34 @@ class IncidentElement extends HTMLElement {
     "latitudeDMS"
   ];
 
-  const rows = fields
-    .map((f) => {
-      if (!i[f]) return "";
+ const rows = fields
+  .map((f) => {
+    if (!i[f]) return "";
 
-      // Special case: make the incident title a link using viewableURL
-      if (f === "incident" && i.viewableURL) {
-        return `<div><strong>${f}:</strong> 
-                  <a href="${i.viewableURL}" target="_blank">
-                    ${i[f]}
-                  </a>
-                </div>`;
-      }
+    // Special case: make the incident title a link using viewableURL
+    if (f === "incident" && i.viewableURL) {
+      return `<div><strong>${f}:</strong> 
+                <a href="${i.viewableURL}" target="_blank">
+                  ${i[f]}
+                </a>
+              </div>`;
+    }
 
-      return `<div><strong>${f}:</strong> ${i[f]}</div>`;
-    })
-    .join("");
+    // Special case: render creator object with readable name
+    if (f === "creator" && typeof i[f] === "object") {
+      const name = i[f].name || i[f].givenName || i[f].alternateName || "Unknown";
+      return `<div><strong>${f}:</strong> ${name}</div>`;
+    }
+
+    // Fallback: stringify any other object-type field
+    if (typeof i[f] === "object") {
+      return `<div><strong>${f}:</strong> ${JSON.stringify(i[f])}</div>`;
+    }
+
+    // Default rendering for primitive fields
+    return `<div><strong>${f}:</strong> ${i[f]}</div>`;
+  })
+  .join("");
 
   return `<div class="incident-entry" style="margin-bottom:1em; padding:0.5em; border:1px solid #ccc;">
             ${rows}
