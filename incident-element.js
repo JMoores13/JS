@@ -30,11 +30,11 @@ class IncidentElement extends HTMLElement {
     const q = this.searchQuery.toLowerCase();
     return (
       i.incident?.toLowerCase().includes(q) ||
-      i.incident?.toLowerCase().includes(q) ||
-      i.incident?.toLowerCase().includes(q) ||
-      i.incident?.toLowerCase().includes(q) ||
-      i.incident?.toLowerCase().includes(q) ||
-      i.incident?.toLowerCase().includes(q) ||
+      i.description?.toLowerCase().includes(q) ||
+      i.location?.toLowerCase().includes(q) ||
+      i.countries?.toLowerCase().includes(q) ||
+      i.statusOfIncident?.key?.toLowerCase().includes(q) ||
+      i.creator?.name?.toLowerCase().includes(q) ||
     );
   });
   const totalPages = Math.ceil(filteredItems.length / this.pageSize);
