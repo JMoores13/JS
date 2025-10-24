@@ -1,7 +1,10 @@
 class IncidentElement extends HTMLElement {
   constructor() {
     super();
-    this.expandedIds = new Set(); // Track expanded entries
+    this.expandedIds = new Set();
+    this.currentPage = 0;
+    this.pageSize = 5;
+    this.allItems = [];
   }
 
   async connectedCallback() {
@@ -10,47 +13,83 @@ class IncidentElement extends HTMLElement {
     try {
       const res = await fetch("/o/c/incidents");
       const data = await res.json();
-      const items = data.items || [];
+      this.allItems = data.items || [];
 
-      this.render(items);
+      this.render();
     } catch (e) {
       console.error("Error fetching incidents:", e);
       this.innerHTML = "<p>Error loading incidents</p>";
     }
   }
 
-  render(items) {
+  render() {
+    const start = this.currentPage * this.pageSize;
+    const end = start + this.pageSize;
+    const visibleItems = this.allItems.slice(start, end);
+    const totalPages = Math.ceil(this.allItems.length / this.pageSize);
+
     this.innerHTML = `
-     <style>
-  .incident-entry {
-  padding: 0.75em 0;
-  border-bottom: 1px solid #ccc;
-}
-  .incident-title {
-    font-size: 1.25em;
-    font-weight: bold;
-    margin-bottom: 0.5em;
-  }
-  .incident-description {
-    margin-top: 0.5em;
-  }
-  .incident-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5em 1em;
-  }
-  .incident-grid div {
-    display: flex;
-    flex-direction: column;
-  }
-  .toggle-link {
-    cursor: pointer;
-    color: #007bff;
-    text-decoration: none;
-  }
-</style>
+      <style>
+        .incident-entry {
+          padding: 0.75em 0;
+          border-bottom: 1px solid #ccc;
+        }
+        .incident-title {
+          font-size: 1.25em;
+          font-weight: bold;
+          margin-bottom: 0.5em;
+        }
+        .incident-description {
+          margin-top: 0.5em;
+        }
+        .incident-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 0.5em 1em;
+        }
+        .incident-grid div {
+          display: flex;
+          flex-direction: column;
+        }
+        .toggle-link {
+          cursor: pointer;
+          color: #007bff;
+          text-decoration: none;
+        }
+        .pagination {
+          margin-top: 1em;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .page-btn {
+          padding: 0.5em 1em;
+          background: #f0f0f0;
+          border: 1px solid #ccc;
+          cursor: pointer;
+        }
+        .page-size-select {
+          margin-left: 1em;
+        }
+      </style>
+
       <h2>Incident List</h2>
-      ${items.map((i) => this.renderIncident(i)).join("")}
+      ${visibleItems.map((i) => this.renderIncident(i)).join("")}
+
+      <div class="pagination">
+        <div>
+          ${this.currentPage > 0 ? `<button class="page-btn" data-dir="prev">Previous</button>` : ""}
+          ${this.currentPage < totalPages - 1 ? `<button class="page-btn" data-dir="next">Next</button>` : ""}
+        </div>
+        <div>
+          <label for="page-size">Items per page:</label>
+          <select id="page-size" class="page-size-select">
+            <option value="5" ${this.pageSize === 5 ? "selected" : ""}>5</option>
+            <option value="10" ${this.pageSize === 10 ? "selected" : ""}>10</option>
+            <option value="15" ${this.pageSize === 15 ? "selected" : ""}>15</option>
+          </select>
+        </div>
+      </div>
     `;
 
     this.querySelectorAll(".toggle-link").forEach((el) => {
@@ -62,18 +101,79 @@ class IncidentElement extends HTMLElement {
         } else {
           this.expandedIds.add(id);
         }
-        this.render(items);
+        this.render();
       });
+    });
+
+    this.querySelectorAll(".page-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const dir = btn.dataset.dir;
+        this.currentPage += dir === "next" ? 1 : -1;
+        this.render();
+      });
+    });
+
+    this.querySelector("#page-size").addEventListener("change", (e) => {
+      this.pageSize = parseInt(e.target.value, 10);
+      this.currentPage = 0;
+      this.render();
     });
   }
 
-renderIncident(i) {
-  const isExpanded = this.expandedIds.has(String(i.id));
+  renderIncident(i) {
+    const isExpanded = this.expandedIds.has(String(i.id));
+    const capitalize = (str) =>
+      typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
-  const capitalize = (str) =>
-    typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+    if (!isExpanded) {
+      return `
+        <div class="incident-entry">
+          <div class="incident-title">
+            <a href="#" class="toggle-link" data-id="${i.id}">
+              ${capitalize(i.incident)}
+            </a>
+          </div>
+          <div class="incident-description">${i.description || "—"}</div>
+          <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a></div>
+        </div>
+      `;
+    }
 
-  if (!isExpanded) {
+    const fields = [
+      { key: "type", label: "Type" },
+      { key: "classification", label: "Classification" },
+      { key: "location", label: "Location" },
+      { key: "countries", label: "Countries" },
+      { key: "opened", label: "Opened" },
+      { key: "updated", label: "Updated" },
+      { key: "closed", label: "Closed" },
+      { key: "mGRS", label: "MGRS" },
+      { key: "latitudeDMS", label: "Latitude" },
+      { key: "longitudeDMS", label: "Longitude" },
+      { key: "statusOfIncident", label: "Status" },
+      { key: "creator", label: "Author" }
+    ];
+
+    const rows = fields
+      .map(({ key, label }) => {
+        if (!i[key]) return "";
+
+        let value = i[key];
+
+        if (key === "creator" && typeof value === "object") {
+          value = value.name || value.givenName || value.alternateName || "Unknown";
+        }
+        if (key === "statusOfIncident" && i[key]?.key === "") {
+          return "";
+        }
+        if (typeof value === "object") {
+          value = JSON.stringify(value);
+        }
+
+        return `<div><strong>${label}:</strong> ${capitalize(value)}</div>`;
+      })
+      .join("");
+
     return `
       <div class="incident-entry">
         <div class="incident-title">
@@ -81,63 +181,14 @@ renderIncident(i) {
             ${capitalize(i.incident)}
           </a>
         </div>
+        <div class="incident-grid">
+          ${rows}
+        </div>
         <div class="incident-description">${i.description || "—"}</div>
-        <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a></div>
+        <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a></div>
       </div>
     `;
   }
-
-  const fields = [
-    { key: "type", label: "Type" },
-    { key: "classification", label: "Classification" },
-    { key: "location", label: "Location" },
-    { key: "countries", label: "Countries" },
-    { key: "opened", label: "Opened" },
-    { key: "updated", label: "Updated" },
-    { key: "closed", label: "Closed" },
-    { key: "mGRS", label: "MGRS" },
-    { key: "latitudeDMS", label: "Latitude" },
-    { key: "longitudeDMS", label: "Longitude" },
-    { key: "statusOfIncident", label: "Status" },
-    { key: "creator", label: "Author" }
-  ];
-
-  const rows = fields
-    .map(({ key, label }) => {
-      if (!i[key]) return "";
-
-      let value = i[key];
-
-      if (key === "creator" && typeof value === "object") {
-        value = value.name || value.givenName || value.alternateName || "Unknown";
-      }
-      if (key === "statusOfIncident" && i[key]?.key === "") {
-        return ""; 
-      }
-
-      if (typeof value === "object") {
-        value = JSON.stringify(value);
-      }
-
-      return `<div><strong>${label}:</strong> ${capitalize(value)}</div>`;
-    })
-    .join("");
-
-  return `
-    <div class="incident-entry">
-      <div class="incident-title">
-        <a href="#" class="toggle-link" data-id="${i.id}">
-          ${capitalize(i.incident)}
-        </a>
-      </div>
-      <div class="incident-grid">
-        ${rows}
-      </div>
-      <div class="incident-description">${i.description || "—"}</div>
-      <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a></div>
-    </div>
-  `;
-}
 }
 
 customElements.define("incident-element", IncidentElement);
