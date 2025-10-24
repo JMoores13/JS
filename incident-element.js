@@ -112,6 +112,9 @@ renderIncident(i) {
       if (key === "creator" && typeof value === "object") {
         value = value.name || value.givenName || value.alternateName || "Unknown";
       }
+      if (key === "statusOfIncident" && i[key]?.key === "") {
+        return ""; 
+      }
 
       if (typeof value === "object") {
         value = JSON.stringify(value);
