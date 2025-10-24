@@ -1,11 +1,10 @@
 class IncidentMapElement extends HTMLElement {
   constructor() {
     super();
-    this.attachShadow({ mode: "open" });
   }
 
   async connectedCallback() {
-    this.shadowRoot.innerHTML = `
+    this.innerHTML = `
       <style>
         #map { height: 500px; width: 100%; }
         .leaflet-container { font: inherit; }
@@ -14,7 +13,7 @@ class IncidentMapElement extends HTMLElement {
     `;
 
     await this.loadLeaflet();
-    this.renderMap();
+    requestAnimationFrame(() => this.renderMap());
   }
 
   async loadLeaflet() {
@@ -34,7 +33,9 @@ class IncidentMapElement extends HTMLElement {
   }
 
   dmsToDecimal(dms) {
+    if (!dms) return NaN;
     const parts = dms.trim().split(/[^\d\w]+/);
+    if (parts.length < 4) return NaN;
     const degrees = parseFloat(parts[0]);
     const minutes = parseFloat(parts[1]);
     const seconds = parseFloat(parts[2]);
@@ -45,7 +46,7 @@ class IncidentMapElement extends HTMLElement {
   }
 
   async renderMap() {
-    const map = L.map(this.shadowRoot.querySelector("#map")).setView([0, 0], 2);
+    const map = L.map(this.querySelector("#map")).setView([0, 0], 2);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
@@ -58,6 +59,8 @@ class IncidentMapElement extends HTMLElement {
       data.items.forEach((item) => {
         const lat = this.dmsToDecimal(item.latitudeDMS);
         const lng = this.dmsToDecimal(item.longitudeDMS);
+        if (isNaN(lat) || isNaN(lng)) return;
+
         const label = item.incident || "Unnamed";
         const url = `/web/guest/incidents/${item.friendlyUrlPath || item.id}`;
 
@@ -69,6 +72,7 @@ class IncidentMapElement extends HTMLElement {
       if (bounds.length) map.fitBounds(bounds);
     } catch (e) {
       console.error("Failed to load incidents:", e);
+      this.querySelector("#map").innerHTML = "<p>Error loading map data</p>";
     }
   }
 }
