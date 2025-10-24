@@ -48,9 +48,9 @@ connectedCallback() {
 
   async renderMap() {
     const map = L.map(this.querySelector("#map")).setView([56.1304, -106.3468], 4);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(map);
+     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
+  }).addTo(map);
 
     try {
       const res = await fetch("/o/c/incidents");
