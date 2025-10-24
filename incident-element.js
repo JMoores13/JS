@@ -98,28 +98,6 @@ connectedCallback() {
   }
 }
 
- render() {
-  const start = this.currentPage * this.pageSize;
-  const end = start + this.pageSize;
-  const filteredItems = this.allItems.filter((i) => {
-    const q = this.searchQuery.toLowerCase();
-    return (
-      i.incident?.toLowerCase().includes(q) ||
-      i.description?.toLowerCase().includes(q) ||
-      i.location?.toLowerCase().includes(q) ||
-      i.countries?.toLowerCase().includes(q) ||
-      i.statusOfIncident?.key?.toLowerCase().includes(q) ||
-      i.creator?.name?.toLowerCase().includes(q)
-    );
-  });
-  const totalPages = Math.ceil(filteredItems.length / this.pageSize);
-  const visibleItems = filteredItems.slice(start, end);
-
-  const pageNumbers = Array.from({ length: totalPages }, (_, i) => {
-    const activeClass = i === this.currentPage ? "active-page" : "";
-    return `<button class="page-number ${activeClass}" data-page="${i}">${i + 1}</button>`;
-  }).join("");
-
    renderList() {
   const start = this.currentPage * this.pageSize;
   const end = start + this.pageSize;
