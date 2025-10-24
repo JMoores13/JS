@@ -164,9 +164,7 @@ connectedCallback() {
     this.currentPage = 0;
     this.renderList();
   });
-}
-
-  this.querySelector("#search-input").value = this.searchQuery;
+      this.querySelector("#search-input").value = this.searchQuery;
    
   this.querySelectorAll(".toggle-link").forEach((el) => {
     el.addEventListener("click", (e) => {
@@ -203,6 +201,7 @@ connectedCallback() {
     this.currentPage = 0;
     this.render();
   });
+
 }
   renderIncident(i) {
     const isExpanded = this.expandedIds.has(String(i.id));
