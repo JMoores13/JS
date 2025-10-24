@@ -22,26 +22,35 @@ class IncidentElement extends HTMLElement {
   render(items) {
     this.innerHTML = `
       <style>
-        .incident-entry {
-          margin-bottom: 1em;
-          padding: 0.5em;
-          border: 1px solid #ccc;
-        }
-        .incident-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0.5em 1em;
-        }
-        .incident-grid div {
-          display: flex;
-          flex-direction: column;
-        }
-        .toggle-link {
-          cursor: pointer;
-          color: #007bff;
-          text-decoration: underline;
-        }
-      </style>
+  .incident-entry {
+    margin-bottom: 1em;
+    padding: 0.5em;
+    border: 1px solid #ccc;
+  }
+  .incident-title {
+    font-size: 1.25em;
+    font-weight: bold;
+    margin-bottom: 0.5em;
+  }
+  .incident-description {
+    margin-bottom: 0.5em;
+  }
+  .incident-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5em 1em;
+    margin-bottom: 0.5em;
+  }
+  .incident-grid div {
+    display: flex;
+    flex-direction: column;
+  }
+  .toggle-link {
+    cursor: pointer;
+    color: #007bff;
+    text-decoration: underline;
+  }
+</style>
       <h2>Incident List</h2>
       ${items.map((i) => this.renderIncident(i)).join("")}
     `;
@@ -60,77 +69,68 @@ class IncidentElement extends HTMLElement {
     });
   }
 
-  renderIncident(i) {
-    const isExpanded = this.expandedIds.has(String(i.id));
+renderIncident(i) {
+  const isExpanded = this.expandedIds.has(String(i.id));
 
-    const capitalize = (str) =>
-      typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+  const capitalize = (str) =>
+    typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
-    if (!isExpanded) {
-      return `
-        <div class="incident-entry">
-          <div><strong>Incident:</strong> 
-            <a href="#" class="toggle-link" data-id="${i.id}">
-              ${capitalize(i.incident)}
-            </a>
-          </div>
-          <div><strong>Description:</strong> ${i.description || "—"}</div>
-          <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a></div>
-        </div>
-      `;
-    }
-
-    const fields = [
-      "incident",
-      "type",
-      "classification",
-      "location",
-      "countries",
-      "opened",
-      "latitudeDMS",
-      "longitudeDMS",
-      "updated",
-      "closed",
-      "mGRS",
-      "description"
-    ];
-
-    const rows = fields
-      .map((f) => {
-        if (!i[f]) return "";
-
-        const label = `<strong>${capitalize(f)}:</strong>`;
-
-        if (f === "incident" && i.viewableURL) {
-          return `<div>${label} 
-                    <a href="${i.viewableURL}" target="_blank" class="toggle-link" data-id="${i.id}">
-                      ${capitalize(i[f])}
-                    </a>
-                  </div>`;
-        }
-
-        if (f === "creator" && typeof i[f] === "object") {
-          const name = i[f].name || i[f].givenName || i[f].alternateName || "Unknown";
-          return `<div>${label} ${name}</div>`;
-        }
-
-        if (typeof i[f] === "object") {
-          return `<div>${label} ${JSON.stringify(i[f])}</div>`;
-        }
-
-        return `<div>${label} ${capitalize(i[f])}</div>`;
-      })
-      .join("");
-
+  if (!isExpanded) {
     return `
       <div class="incident-entry">
-        <div class="incident-grid">
-          ${rows}
+        <div class="incident-title">
+          <a href="#" class="toggle-link" data-id="${i.id}">
+            ${capitalize(i.incident)}
+          </a>
         </div>
-        <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a></div>
+        <div class="incident-description">${i.description || "—"}</div>
+        <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a></div>
       </div>
     `;
   }
+
+  const fields = [
+    "type",
+    "classification",
+    "location",
+    "countries",
+    "opened",
+    "latitudeDMS",
+    "longitudeDMS",
+    "updated",
+    "closed",
+    "mGRS"
+  ];
+
+  const rows = fields
+    .map((f) => {
+      if (!i[f]) return "";
+
+      const label = `<strong>${capitalize(f)}:</strong>`;
+      const value =
+        typeof i[f] === "object"
+          ? JSON.stringify(i[f])
+          : capitalize(i[f]);
+
+      return `<div>${label} ${value}</div>`;
+    })
+    .join("");
+
+  return `
+    <div class="incident-entry">
+      <div class="incident-title">
+        <a href="#" class="toggle-link" data-id="${i.id}">
+          ${capitalize(i.incident)}
+        </a>
+      </div>
+      <div class="incident-description">${i.description || "—"}</div>
+      <div class="incident-grid">
+        ${rows}
+      </div>
+      <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a></div>
+    </div>
+  `;
+}
 }
 
 customElements.define("incident-element", IncidentElement);
