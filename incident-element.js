@@ -21,7 +21,7 @@ class IncidentElement extends HTMLElement {
 
   render(items) {
     this.innerHTML = `
-      <style>
+     <style>
   .incident-entry {
     margin-bottom: 1em;
     padding: 0.5em;
@@ -33,13 +33,12 @@ class IncidentElement extends HTMLElement {
     margin-bottom: 0.5em;
   }
   .incident-description {
-    margin-bottom: 0.5em;
+    margin-top: 0.5em;
   }
   .incident-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.5em 1em;
-    margin-bottom: 0.5em;
   }
   .incident-grid div {
     display: flex;
@@ -90,29 +89,35 @@ renderIncident(i) {
   }
 
   const fields = [
-    "type",
-    "classification",
-    "location",
-    "countries",
-    "opened",
-    "latitudeDMS",
-    "longitudeDMS",
-    "updated",
-    "closed",
-    "mGRS"
+    { key: "type", label: "Type" },
+    { key: "classification", label: "Classification" },
+    { key: "location", label: "Location" },
+    { key: "countries", label: "Countries" },
+    { key: "opened", label: "Opened" },
+    { key: "updated", label: "Updated" },
+    { key: "closed", label: "Closed" },
+    { key: "mGRS", label: "MGRS" },
+    { key: "latitudeDMS", label: "Latitude" },
+    { key: "longitudeDMS", label: "Longitude" },
+    { key: "statusOfIncident", label: "Status" },
+    { key: "creator", label: "Author" }
   ];
 
   const rows = fields
-    .map((f) => {
-      if (!i[f]) return "";
+    .map(({ key, label }) => {
+      if (!i[key]) return "";
 
-      const label = `<strong>${capitalize(f)}:</strong>`;
-      const value =
-        typeof i[f] === "object"
-          ? JSON.stringify(i[f])
-          : capitalize(i[f]);
+      let value = i[key];
 
-      return `<div>${label} ${value}</div>`;
+      if (key === "creator" && typeof value === "object") {
+        value = value.name || value.givenName || value.alternateName || "Unknown";
+      }
+
+      if (typeof value === "object") {
+        value = JSON.stringify(value);
+      }
+
+      return `<div><strong>${label}:</strong> ${capitalize(value)}</div>`;
     })
     .join("");
 
@@ -123,10 +128,10 @@ renderIncident(i) {
           ${capitalize(i.incident)}
         </a>
       </div>
-      <div class="incident-description">${i.description || "—"}</div>
       <div class="incident-grid">
         ${rows}
       </div>
+      <div class="incident-description">${i.description || "—"}</div>
       <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a></div>
     </div>
   `;
