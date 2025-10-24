@@ -106,10 +106,11 @@ class IncidentElement extends HTMLElement {
         border-radius: 4px;
       }
     </style>
+    this.querySelector("#search-input").value = this.searchQuery;
 
     <h2>Incident List</h2>
     <div class="search-bar">
-      <input type="text" id="search-input" placeholder="Search" value="${this.searchQuery}"/>
+      <input type="text" id="search-input" placeholder="Search"/>
     </div>
     
     ${visibleItems.map((i) => this.renderIncident(i)).join("")}
