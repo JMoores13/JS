@@ -106,7 +106,6 @@ class IncidentElement extends HTMLElement {
         border-radius: 4px;
       }
     </style>
-    this.querySelector("#search-input").value = this.searchQuery;
 
     <h2>Incident List</h2>
     <div class="search-bar">
@@ -128,6 +127,8 @@ class IncidentElement extends HTMLElement {
     </div>
   `;
 
+  this.querySelector("#search-input").value = this.searchQuery;
+   
   this.querySelectorAll(".toggle-link").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.preventDefault();
