@@ -47,7 +47,7 @@ connectedCallback() {
   }
 
   async renderMap() {
-    const map = L.map(this.querySelector("#map")).setView([0, 0], 2);
+    const map = L.map(this.querySelector("#map")).setView([56.1304, -106.3468], 4);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
