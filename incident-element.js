@@ -22,7 +22,7 @@ class IncidentElement extends HTMLElement {
     "id",
     "incident",
     "description",
-    "creator",
+    "author",
     "location",
     "opened",
     "modifiedDate",
