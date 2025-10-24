@@ -164,43 +164,6 @@ connectedCallback() {
     this.currentPage = 0;
     this.renderList();
   });
-      this.querySelector("#search-input").value = this.searchQuery;
-   
-  this.querySelectorAll(".toggle-link").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      e.preventDefault();
-      const id = el.dataset.id;
-      if (this.expandedIds.has(id)) {
-        this.expandedIds.delete(id);
-      } else {
-        this.expandedIds.add(id);
-      }
-      this.render();
-    });
-  });
-
-  this.querySelectorAll(".page-number").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      this.currentPage = parseInt(btn.dataset.page, 10);
-      this.render();
-    });
-  });
-
-  this.querySelector("#search-input").addEventListener("input", (e) => {
-    clearTimeout(this.searchDebounceTimer);
-    const value = e.target.value;
-    this.searchDebounceTimer = setTimeout(() => {
-      this.searchQuery = value;
-      this.currentPage = 0;
-      this.render();
-    }, 250);
-  });
-
-  this.querySelector("#page-size").addEventListener("change", (e) => {
-    this.pageSize = parseInt(e.target.value, 10);
-    this.currentPage = 0;
-    this.render();
-  });
 
 }
   renderIncident(i) {
