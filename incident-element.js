@@ -170,8 +170,7 @@ connectedCallback() {
     const isExpanded = this.expandedIds.has(String(i.id));
     const capitalize = (str) =>
       typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
-    const layoutUUID = "6a914ae4-95d9-d573-1b7a-21bb188f7457";
-    const editUrl = `/web/incident-reporting-tool/${layoutUUID}?objectEntryId=${i.id}`;
+    const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
 
     if (!isExpanded) {
       return `
