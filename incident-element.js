@@ -170,6 +170,7 @@ connectedCallback() {
     const isExpanded = this.expandedIds.has(String(i.id));
     const capitalize = (str) =>
       typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+    const editUrl = `/e/Incident-Reporting-Tool/incident-view/${i.id}`;
 
     if (!isExpanded) {
       return `
@@ -231,7 +232,10 @@ connectedCallback() {
           ${rows}
         </div>
         <div class="incident-description">${i.description || "—"}</div>
-        <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a></div>
+        <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
+        &nbsp; |&nbsp;
+        <a href="${editUrl}" class="edit-link">Edit</a>
+        </div>
       </div>
     `;
   }
