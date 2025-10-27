@@ -170,7 +170,7 @@ connectedCallback() {
     const isExpanded = this.expandedIds.has(String(i.id));
     const capitalize = (str) =>
       typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
-    const editUrl = `/e/Incident-Reporting-Tool/incident-view/${i.id}/35115`;
+    const editUrl = `/e/Incident-Reporting-Tool/incident-view/34236/${i.id}`;
 
     if (!isExpanded) {
       return `
