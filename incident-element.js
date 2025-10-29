@@ -223,32 +223,36 @@ connectedCallback() {
   ];
 
   const rows = fields
-    .map(({ key, label }) => {
-      let value = i[key];
-      if (!value) return "";
+  .map(({ key, label }) => {
+    let value = i[key];
 
-      if (key === "creator" && typeof value === "object") {
-        value = value.name || value.givenName || value.alternateName || "Unknown";
-      }
+    // Format dates early
+    if (["createDate", "modifiedDate"].includes(key)) {
+      value = formatDate(value);
+    }
+
+    // Skip if still empty
+    if (!value) return "";
+
+    if (key === "creator" && typeof value === "object") {
+      value = value.name || value.givenName || value.alternateName || "Unknown";
+    }
+
     if (key === "statusOfIncident") {
       const status = i.statusOfIncident;
       if (!status || (!status.name && !status.key)) return "";
       value = status.name || status.key;
     }
 
-      if (["createDate", "modifiedDate"].includes(key)) {
-        value = formatDate(value);
-      }
-      
-      return `<div><strong>${label}:</strong> ${value}</div>`;
-    })
-    .join("");
+    return `<div><strong>${label}:</strong> ${value}</div>`;
+  })
+  .join("");
 
   // Inject derived Updated/Closed rows
-  const extraRows = `
-    ${updatedValue ? `<div><strong>Updated:</strong> ${formatDate(updatedValue)}</div>` : ""}
-    ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
-  `;
+ const extraRows = `
+  ${updatedValue ? `<div><strong>Updated:</strong> ${formatDate(updatedValue)}</div>` : ""}
+  ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
+`;
 
   return `
     <div class="incident-entry">
