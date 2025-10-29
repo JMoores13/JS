@@ -166,80 +166,23 @@ connectedCallback() {
   });
 
 }
-  renderIncident(i) {
-    const isExpanded = this.expandedIds.has(String(i.id));
-    const capitalize = (str) =>
-      typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
-    const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
+ renderIncident(i) {
+  const isExpanded = this.expandedIds.has(String(i.id));
+  const capitalize = (str) =>
+    typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+  const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
 
-    let updatedValue = i.updated;
-    let closedValue = i.closed;
+  // Derive updated/closed values
+  let updatedValue = i.updated;
+  let closedValue = i.closed;
 
-    if (i.statusOfIncident?.key?.toLowerCase() === "closed") {
-      closedValue = i.modifiedDate;
-    } else if (i.statusOfIncident?.key?.toLowerCase() === "updated") {
-      updatedValue = i.modifiedDate;
-    }
+  if (i.statusOfIncident?.key?.toLowerCase() === "closed") {
+    closedValue = i.modifiedDate;
+  } else if (i.statusOfIncident?.key?.toLowerCase() === "updated") {
+    updatedValue = i.modifiedDate;
+  }
 
-
-
-    if (!isExpanded) {
-      return `
-        <div class="incident-entry">
-          <div class="incident-title">
-            <a href="#" class="toggle-link" data-id="${i.id}">
-              ${capitalize(i.incident)}
-            </a>
-          </div>
-          <div class="incident-description">${i.description || "—"}</div>
-          <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
-           &nbsp; |&nbsp;
-        <a href="${editUrl}" class="edit-link">Edit</a>
-        </div>
-        </div>
-      `;
-    }
-
-    const fields = [
-      { key: "type", label: "Type" },
-      { key: "classification", label: "Classification" },
-      { key: "location", label: "Location" },
-      { key: "countries", label: "Countries" },
-      { key: "createDate", label: "Opened" },
-      { key: "modifiedDate", label: "Modified" },
-      { key: "closed", label: "Closed" },
-      { key: "mGRS", label: "MGRS" },
-      { key: "latitudeDMS", label: "Latitude" },
-      { key: "longitudeDMS", label: "Longitude" },
-      { key: "statusOfIncident", label: "Status" },
-      { key: "creator", label: "Author" }
-    ];
-
-    const rows = fields
-      .map(({ key, label }) => {
-        if (!i[key]) return "";
-
-        let value = i[key];
-
-        if (key === "creator" && typeof value === "object") {
-          value = value.name || value.givenName || value.alternateName || "Unknown";
-        }
-        if (key === "statusOfIncident" && i[key]?.key === "") {
-          return "";
-        }
-        if (typeof value === "object") {
-          value = JSON.stringify(value);
-        }
-
-        return `<div><strong>${label}:</strong> ${capitalize(value)}</div>`;
-      })
-      .join("");
-
-     const extraRows = `
-    ${updatedValue ? `<div><strong>Updated:</strong> ${updatedValue}</div>` : ""}
-    ${closedValue ? `<div><strong>Closed:</strong> ${closedValue}</div>` : ""}
-  `;
-
+  if (!isExpanded) {
     return `
       <div class="incident-entry">
         <div class="incident-title">
@@ -247,18 +190,69 @@ connectedCallback() {
             ${capitalize(i.incident)}
           </a>
         </div>
-        <div class="incident-grid">
-          ${rows}
-          ${extraRows}
-        </div>
         <div class="incident-description">${i.description || "—"}</div>
-        <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
-        &nbsp; |&nbsp;
-        <a href="${editUrl}" class="edit-link">Edit</a>
-        </div>
+        <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
+         &nbsp; |&nbsp;
+      <a href="${editUrl}" class="edit-link">Edit</a>
+      </div>
       </div>
     `;
   }
+
+  const fields = [
+    { key: "type", label: "Type" },
+    { key: "classification", label: "Classification" },
+    { key: "location", label: "Location" },
+    { key: "countries", label: "Countries" },
+    { key: "createDate", label: "Opened" },
+    { key: "mGRS", label: "MGRS" },
+    { key: "latitudeDMS", label: "Latitude" },
+    { key: "longitudeDMS", label: "Longitude" },
+    { key: "statusOfIncident", label: "Status" },
+    { key: "creator", label: "Author" }
+  ];
+
+  const rows = fields
+    .map(({ key, label }) => {
+      let value = i[key];
+      if (!value) return "";
+
+      if (key === "creator" && typeof value === "object") {
+        value = value.name || value.givenName || value.alternateName || "Unknown";
+      }
+      if (key === "statusOfIncident") {
+        value = value.name || value.key || "";
+      }
+
+      return `<div><strong>${label}:</strong> ${capitalize(value)}</div>`;
+    })
+    .join("");
+
+  // Inject derived Updated/Closed rows
+  const extraRows = `
+    ${updatedValue ? `<div><strong>Updated:</strong> ${updatedValue}</div>` : ""}
+    ${closedValue ? `<div><strong>Closed:</strong> ${closedValue}</div>` : ""}
+  `;
+
+  return `
+    <div class="incident-entry">
+      <div class="incident-title">
+        <a href="#" class="toggle-link" data-id="${i.id}">
+          ${capitalize(i.incident)}
+        </a>
+      </div>
+      <div class="incident-grid">
+        ${rows}
+        ${extraRows}
+      </div>
+      <div class="incident-description">${i.description || "—"}</div>
+      <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
+      &nbsp; |&nbsp;
+      <a href="${editUrl}" class="edit-link">Edit</a>
+      </div>
+    </div>
+  `;
+}
 }
 
 customElements.define("incident-element", IncidentElement);
