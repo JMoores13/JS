@@ -172,6 +172,15 @@ connectedCallback() {
     typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
   const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
 
+   const formatDate = (val) => {
+    if (!val) return "";
+    try {
+      return new Date(val).toLocaleDateString(); // or .toLocaleString() for full timestamp
+    } catch {
+      return val;
+    }
+  };
+
   // Derive updated/closed values
   let updatedValue = i.updated;
   let closedValue = i.closed;
@@ -205,6 +214,7 @@ connectedCallback() {
     { key: "location", label: "Location" },
     { key: "countries", label: "Countries" },
     { key: "createDate", label: "Opened" },
+    { key: "modifiedDate", label: "Modified" },
     { key: "mGRS", label: "MGRS" },
     { key: "latitudeDMS", label: "Latitude" },
     { key: "longitudeDMS", label: "Longitude" },
@@ -220,18 +230,24 @@ connectedCallback() {
       if (key === "creator" && typeof value === "object") {
         value = value.name || value.givenName || value.alternateName || "Unknown";
       }
-      if (key === "statusOfIncident") {
-        value = value.name || value.key || "";
-      }
+    if (key === "statusOfIncident") {
+      const status = i.statusOfIncident;
+      if (!status || (!status.name && !status.key)) return "";
+      value = status.name || status.key;
+    }
 
-      return `<div><strong>${label}:</strong> ${capitalize(value)}</div>`;
+      if (["createDate", "modifiedDate"].includes(key)) {
+        value = formatDate(value);
+      }
+      
+      return `<div><strong>${label}:</strong> ${value}</div>`;
     })
     .join("");
 
   // Inject derived Updated/Closed rows
   const extraRows = `
-    ${updatedValue ? `<div><strong>Updated:</strong> ${updatedValue}</div>` : ""}
-    ${closedValue ? `<div><strong>Closed:</strong> ${closedValue}</div>` : ""}
+    ${updatedValue ? `<div><strong>Updated:</strong> ${formatDate(updatedValue)}</div>` : ""}
+    ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
   `;
 
   return `
