@@ -185,11 +185,15 @@ connectedCallback() {
   let updatedValue = i.updated;
   let closedValue = i.closed;
 
-  if (i.statusOfIncident?.key?.toLowerCase() === "closed") {
+const statusKey = i.statusOfIncident?.key?.toLowerCase();
+
+  if (statusKey === "completed") {
     closedValue = i.modifiedDate;
-  } else if (i.statusOfIncident?.key?.toLowerCase() === "updated") {
+  } else if (["open", "in progress", "inactive"].includes(statusKey)) {
     updatedValue = i.modifiedDate;
   }
+
+
 
   if (!isExpanded) {
     return `
