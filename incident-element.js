@@ -181,7 +181,10 @@ connectedCallback() {
             </a>
           </div>
           <div class="incident-description">${i.description || "—"}</div>
-          <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a></div>
+          <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
+           &nbsp; |&nbsp;
+        <a href="${editUrl}" class="edit-link">Edit</a>
+        </div>
         </div>
       `;
     }
