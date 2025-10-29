@@ -172,6 +172,17 @@ connectedCallback() {
       typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
 
+    let updatedValue = i.updated;
+    let closedValue = i.closed;
+
+    if (i.statusOfIncident?.key?.toLowerCase() === "closed") {
+      closedValue = i.modifiedDate;
+    } else if (i.statusOfIncident?.key?.toLowerCase() === "updated") {
+      updatedValue = i.modifiedDate;
+    }
+
+
+
     if (!isExpanded) {
       return `
         <div class="incident-entry">
@@ -195,7 +206,7 @@ connectedCallback() {
       { key: "location", label: "Location" },
       { key: "countries", label: "Countries" },
       { key: "createDate", label: "Opened" },
-      { key: "modifiedDate", label: "Updated" },
+      { key: "modifiedDate", label: "Modified" },
       { key: "closed", label: "Closed" },
       { key: "mGRS", label: "MGRS" },
       { key: "latitudeDMS", label: "Latitude" },
@@ -224,6 +235,11 @@ connectedCallback() {
       })
       .join("");
 
+     const extraRows = `
+    ${updatedValue ? `<div><strong>Updated:</strong> ${updatedValue}</div>` : ""}
+    ${closedValue ? `<div><strong>Closed:</strong> ${closedValue}</div>` : ""}
+  `;
+
     return `
       <div class="incident-entry">
         <div class="incident-title">
@@ -233,6 +249,7 @@ connectedCallback() {
         </div>
         <div class="incident-grid">
           ${rows}
+          ${extraRows}
         </div>
         <div class="incident-description">${i.description || "—"}</div>
         <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
