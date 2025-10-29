@@ -166,34 +166,32 @@ connectedCallback() {
   });
 
 }
- renderIncident(i) {
+renderIncident(i) {
   const isExpanded = this.expandedIds.has(String(i.id));
-  const capitalize = (str) =>
-    typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
   const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
 
-   const formatDate = (val) => {
+  const capitalize = (str) =>
+    typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+
+  const formatDate = (val) => {
     if (!val) return "";
     try {
-      return new Date(val).toLocaleDateString(); // or .toLocaleString() for full timestamp
+      return new Date(val).toLocaleDateString();
     } catch {
       return val;
     }
   };
 
-  // Derive updated/closed values
+  // Derive updated/closed values based on status
   let updatedValue = i.updated;
   let closedValue = i.closed;
-
-const statusKey = i.statusOfIncident?.key?.toLowerCase();
+  const statusKey = i.statusOfIncident?.key?.toLowerCase();
 
   if (statusKey === "completed") {
     closedValue = i.modifiedDate;
   } else if (["open", "in progress", "inactive"].includes(statusKey)) {
     updatedValue = i.modifiedDate;
   }
-
-
 
   if (!isExpanded) {
     return `
@@ -206,8 +204,8 @@ const statusKey = i.statusOfIncident?.key?.toLowerCase();
         <div class="incident-description">${i.description || "—"}</div>
         <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
          &nbsp; |&nbsp;
-      <a href="${editUrl}" class="edit-link">Edit</a>
-      </div>
+        <a href="${editUrl}" class="edit-link">Edit</a>
+        </div>
       </div>
     `;
   }
@@ -227,36 +225,34 @@ const statusKey = i.statusOfIncident?.key?.toLowerCase();
   ];
 
   const rows = fields
-  .map(({ key, label }) => {
-    let value = i[key];
+    .map(({ key, label }) => {
+      let value = i[key];
 
-    // Format dates early
-    if (["createDate", "modifiedDate"].includes(key)) {
-      value = formatDate(value);
-    }
+      // Format dates early
+      if (["createDate", "modifiedDate"].includes(key)) {
+        value = formatDate(value);
+      }
 
-    // Skip if still empty
-    if (!value) return "";
+      if (key === "creator" && typeof value === "object") {
+        value = value.name || value.givenName || value.alternateName || "Unknown";
+      }
 
-    if (key === "creator" && typeof value === "object") {
-      value = value.name || value.givenName || value.alternateName || "Unknown";
-    }
+      if (key === "statusOfIncident") {
+        const status = i.statusOfIncident;
+        if (!status || (!status.name && !status.key)) return "";
+        value = status.name || status.key;
+      }
 
-    if (key === "statusOfIncident") {
-      const status = i.statusOfIncident;
-      if (!status || (!status.name && !status.key)) return "";
-      value = status.name || status.key;
-    }
+      if (!value) return "";
 
-    return `<div><strong>${label}:</strong> ${value}</div>`;
-  })
-  .join("");
+      return `<div><strong>${label}:</strong> ${value}</div>`;
+    })
+    .join("");
 
-  // Inject derived Updated/Closed rows
- const extraRows = `
-  ${updatedValue ? `<div><strong>Updated:</strong> ${formatDate(updatedValue)}</div>` : ""}
-  ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
-`;
+  const extraRows = `
+    ${updatedValue ? `<div><strong>Updated:</strong> ${formatDate(updatedValue)}</div>` : ""}
+    ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
+  `;
 
   return `
     <div class="incident-entry">
