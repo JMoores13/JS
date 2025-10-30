@@ -221,7 +221,7 @@ renderIncident(i) {
     { key: "classification", label: "Classification" },
     { key: "location", label: "Location" },
     { key: "countries", label: "Countries" },
-    { key: "createDate", label: "Opened" },
+    { key: "opened", label: "Opened" },
     { key: "modifiedDate", label: "Modified" },
     { key: "mGRS", label: "MGRS" },
     { key: "latitudeDMS", label: "Latitude" },
@@ -235,7 +235,7 @@ renderIncident(i) {
       let value = i[key];
 
       // Format dates early
-      if (["createDate", "modifiedDate"].includes(key)) {
+      if (["opened", "modifiedDate"].includes(key)) {
         value = formatDate(value);
       }
 
@@ -248,7 +248,7 @@ renderIncident(i) {
         if (!status || (!status.name && !status.key)) return "";
         value = status.name || status.key;
       }
-
+      
       if (!value) return "";
 
       return `<div><strong>${label}:</strong> ${value}</div>`;
