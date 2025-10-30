@@ -33,18 +33,43 @@ connectedCallback() {
     }
   }
 
-  dmsToDecimal(dms) {
-    if (!dms) return NaN;
-    const parts = dms.trim().split(/[^\d\w]+/);
-    if (parts.length < 4) return NaN;
-    const degrees = parseFloat(parts[0]);
-    const minutes = parseFloat(parts[1]);
-    const seconds = parseFloat(parts[2]);
-    const direction = parts[3].toUpperCase();
+ dmsToDecimal(dms) {
+  if (!dms) return NaN;
+
+  const str = dms.trim();
+
+  // Already formatted with symbols (° ′ ″)
+  const symbolMatch = str.match(
+    /^(\d+(?:\.\d+)?)°\s*(\d+(?:\.\d+)?)′\s*(\d+(?:\.\d+)?)″\s*([NSEW])$/i
+  );
+  if (symbolMatch) {
+    const degrees = parseFloat(symbolMatch[1]);
+    const minutes = parseFloat(symbolMatch[2]);
+    const seconds = parseFloat(symbolMatch[3]);
+    const direction = symbolMatch[4].toUpperCase();
+
     let decimal = degrees + minutes / 60 + seconds / 3600;
     if (["S", "W"].includes(direction)) decimal *= -1;
     return decimal;
   }
+
+  // Space‑separated values (deg min sec dir)
+  const parts = str.split(/\s+/);
+  if (parts.length >= 4) {
+    const degrees = parseFloat(parts[0]);
+    const minutes = parseFloat(parts[1]);
+    const seconds = parseFloat(parts[2]);
+    const direction = parts[3].toUpperCase();
+
+    if (isNaN(degrees) || isNaN(minutes) || isNaN(seconds)) return NaN;
+
+    let decimal = degrees + minutes / 60 + seconds / 3600;
+    if (["S", "W"].includes(direction)) decimal *= -1;
+    return decimal;
+  }
+
+  return NaN;
+}
 
   async renderMap() {
     const map = L.map(this.querySelector("#map")).setView([56.1304, -106.3468], 3);
