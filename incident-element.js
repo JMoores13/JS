@@ -267,7 +267,6 @@ renderIncident(i) {
           ${capitalize(i.incident)}
         </a>
       </div>
-      ${dateError}
       <div class="incident-grid">
         ${rows}
         ${extraRows}
