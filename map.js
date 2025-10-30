@@ -66,7 +66,7 @@ connectedCallback() {
         const url = `/web/incident-reporting-tool/edit-incident?objectEntryId=${item.id}`;
 
         const marker = L.marker([lat, lng]).addTo(map);
-        marker.bindPopup(`<a href="${url}" target="_blank">${label}</a>`);
+        marker.bindPopup(`<a href="${url}" target="_self">${label}</a>`);
         bounds.push([lat, lng]);
       });
 
