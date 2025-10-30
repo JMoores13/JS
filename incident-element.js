@@ -230,11 +230,6 @@ renderIncident(i) {
     { key: "creator", label: "Author" }
   ];
 
-  let dateError = "";
-  if (!i.createDate || isNaN(Date.parse(i.createDate))) {
-    dateError = `<div style="color:red;"><strong>Error:</strong> Missing or invalid createDate for incident ID ${i.id}</div>`;
-  }
-
   const rows = fields
     .map(({ key, label }) => {
       let value = i[key];
