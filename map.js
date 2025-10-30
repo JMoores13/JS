@@ -63,7 +63,7 @@ connectedCallback() {
         if (isNaN(lat) || isNaN(lng)) return;
 
         const label = item.incident || "Unnamed";
-        const url = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
+        const url = `/web/incident-reporting-tool/edit-incident?objectEntryId=${item.id}`;
 
         const marker = L.marker([lat, lng]).addTo(map);
         marker.bindPopup(`<a href="${url}" target="_blank">${label}</a>`);
