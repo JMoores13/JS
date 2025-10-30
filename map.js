@@ -33,42 +33,31 @@ connectedCallback() {
     }
   }
 
- dmsToDecimal(dms) {
+dmsToDecimal(dms) {
   if (!dms) return NaN;
+  let str = dms.trim();
 
-  const str = dms.trim();
+  // Normalize common symbols to spaces
+  str = str
+    .replace(/[°º]/g, " ")   // degree
+    .replace(/[′’']/g, " ")  // minutes (prime, apostrophe)
+    .replace(/[″”"]/g, " ")  // seconds (double prime, quote)
+    .replace(/\s+/g, " ")    // collapse whitespace
+    .trim();
 
-  // Already formatted with symbols (° ′ ″)
-  const symbolMatch = str.match(
-    /^(\d+(?:\.\d+)?)°\s*(\d+(?:\.\d+)?)′\s*(\d+(?:\.\d+)?)″\s*([NSEW])$/i
-  );
-  if (symbolMatch) {
-    const degrees = parseFloat(symbolMatch[1]);
-    const minutes = parseFloat(symbolMatch[2]);
-    const seconds = parseFloat(symbolMatch[3]);
-    const direction = symbolMatch[4].toUpperCase();
+  const parts = str.split(" ");
+  if (parts.length < 4) return NaN;
 
-    let decimal = degrees + minutes / 60 + seconds / 3600;
-    if (["S", "W"].includes(direction)) decimal *= -1;
-    return decimal;
-  }
+  const degrees = parseFloat(parts[0]);
+  const minutes = parseFloat(parts[1]);
+  const seconds = parseFloat(parts[2]);
+  const direction = parts[3].toUpperCase();
 
-  // Space‑separated values (deg min sec dir)
-  const parts = str.split(/\s+/);
-  if (parts.length >= 4) {
-    const degrees = parseFloat(parts[0]);
-    const minutes = parseFloat(parts[1]);
-    const seconds = parseFloat(parts[2]);
-    const direction = parts[3].toUpperCase();
+  if (isNaN(degrees) || isNaN(minutes) || isNaN(seconds)) return NaN;
 
-    if (isNaN(degrees) || isNaN(minutes) || isNaN(seconds)) return NaN;
-
-    let decimal = degrees + minutes / 60 + seconds / 3600;
-    if (["S", "W"].includes(direction)) decimal *= -1;
-    return decimal;
-  }
-
-  return NaN;
+  let decimal = degrees + minutes / 60 + seconds / 3600;
+  if (["S", "W"].includes(direction)) decimal *= -1;
+  return decimal;
 }
 
   async renderMap() {
