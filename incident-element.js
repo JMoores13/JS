@@ -109,7 +109,7 @@ connectedCallback() {
 
  async fetchComments(incidentId) {
   try {
-    const res = await fetch(`/o/c/comments?filter=r_commentOnIncident_c_incidentId eq ${incidentId}&pageSize=200`);
+    const res = await fetch(`/o/c/comments?pageSize=200`);
     if (!res.ok) {
       console.error("Comments fetch failed:", res.status, await res.text());
       return [];
