@@ -80,6 +80,11 @@ class IncidentElement extends HTMLElement {
         border: 0;
         border-top: 1px solid #ccc;
       }
+      .comment-header{
+        font-size: 1.25em;
+        font-weight: bold;
+        margin-bottom: 0.5em;
+      }
       </style>
       <h2>Incident List</h2>
       <div class="search-bar">
@@ -296,6 +301,7 @@ class IncidentElement extends HTMLElement {
         </div>
         <div class="incident-description">${i.description || "—"}</div>
         <hr class="comments-separator"/>
+        <div class="comment-header"> Comments: </div>
         <div id="comments-${i.id}" class="incident-comments">Loading comments...</div>
         <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
         &nbsp; |&nbsp;
