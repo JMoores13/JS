@@ -72,7 +72,7 @@ connectedCallback() {
       }
       .incident-comments .comment{
         margin-top: 0.25em;
-        fontsize: 0.9em;
+        font-size: 0.9em;
       }
       .comments-separator {
         margin: 0.75em 0;
@@ -107,10 +107,15 @@ connectedCallback() {
   }
 }
 
-  async fetchComments(incidentId) {
+ async fetchComments(incidentId) {
   try {
     const res = await fetch(`/o/c/comments?filter=r_commentOnIncident_c_incidentId eq ${incidentId}&pageSize=200`);
+    if (!res.ok) {
+      console.error("Comments fetch failed:", res.status, await res.text());
+      return [];
+    }
     const data = await res.json();
+    console.log("Comments API response for", incidentId, data);
     return data.items || [];
   } catch (e) {
     console.error("Error fetching comments:", e);
@@ -158,6 +163,19 @@ connectedCallback() {
   `;
 
   this.querySelector("#incident-list").innerHTML = listHTML;
+
+  // After rendering, hydrate comments for expanded incidents
+  this.expandedIds.forEach(async (id) => {
+    const container = this.querySelector(`#comments-${id}`);
+    if (container) {
+      const comments = await this.fetchComments(id);
+      container.innerHTML = comments.length
+        ? comments.map(c => `<div class="comment"><em>${c.creator?.name || "Anon"}:</em> ${c.comment}</div>`).join("")
+        : "<div>No comments yet.</div>";
+    }
+  });
+
+
 
   this.querySelectorAll(".toggle-link").forEach((el) => {
     el.addEventListener("click", (e) => {
@@ -283,16 +301,6 @@ renderIncident(i) {
     ${updatedValue ? `<div><strong>Updated:</strong> ${formatDate(updatedValue)}</div>` : ""}
     ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
   `;
-// Expanded block with comments
-(async () => {
-  const container = this.querySelector(`#comments-${i.id}`);
-  if (container) {
-    const comments = await this.fetchComments(i.id);
-    container.innerHTML = comments.length
-      ? comments.map(c => `<div class="comment"><em>${c.creator?.name || "Anon"}:</em> ${c.comment}</div>`).join("")
-      : "<div>No comments yet.</div>";
-  }
-})();
 
 return `
   <div class="incident-entry">
