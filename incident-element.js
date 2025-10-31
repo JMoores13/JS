@@ -70,6 +70,10 @@ connectedCallback() {
         border: 1px solid #ccc;
         border-radius: 4px;
       }
+      .incident-comments.comment{
+        margin-top: 0.25em;
+        fontsize: 0.9em;
+      }
     </style>
     <h2>Incident List</h2>
     <div class="search-bar">
@@ -95,6 +99,17 @@ connectedCallback() {
   } catch (e) {
     console.error("Error fetching incidents:", e);
     this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
+  }
+}
+
+  async fetchComments(incidentId) {
+  try {
+    const res = await fetch(`/o/c/comments?filter=r_commentOnIncident_c_incidentId eq '${incidentId}'`);
+    const data = await res.json();
+    return data.items || [];
+  } catch (e) {
+    console.error("Error fetching comments:", e);
+    return [];
   }
 }
 
@@ -173,14 +188,18 @@ renderIncident(i) {
   const capitalize = (str) =>
     typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
-  const formatDate = (val) => {
-    if (!val) return "";
-    try {
-      return new Date(val).toLocaleDateString();
-    } catch {
-      return val;
-    }
-  };
+ const formatDate = (val) => {
+  if (!val) return "";
+  try {
+    const d = new Date(val);
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  } catch {
+    return val;
+  }
+};
 
   console.log("Incident ID:", i.id);
   console.log("createDate:", i.createDate);
@@ -259,25 +278,38 @@ renderIncident(i) {
     ${updatedValue ? `<div><strong>Updated:</strong> ${formatDate(updatedValue)}</div>` : ""}
     ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
   `;
+// Expanded block with comments
+setTimeout(async () => {
+  const container = this.querySelector(`#comments-${i.id}`);
+  if (container) {
+    const comments = await this.fetchComments(i.id);
+    container.innerHTML = comments.length
+      ? comments.map(c => `<div class="comment"><em>${c.creator?.name || "Anon"}:</em> ${c.comment}</div>`).join("")
+      : "<div>No comments yet.</div>";
+  }
+});
 
-  return `
-    <div class="incident-entry">
-      <div class="incident-title">
-        <a href="#" class="toggle-link" data-id="${i.id}">
-          ${capitalize(i.incident)}
-        </a>
-      </div>
-      <div class="incident-grid">
-        ${rows}
-        ${extraRows}
-      </div>
-      <div class="incident-description">${i.description || "—"}</div>
-      <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
-      &nbsp; |&nbsp;
-      <a href="${editUrl}" class="edit-link">Edit</a>
-      </div>
+return `
+  <div class="incident-entry">
+    <div class="incident-title">
+      <a href="#" class="toggle-link" data-id="${i.id}">
+        ${capitalize(i.incident)}
+      </a>
     </div>
-  `;
+    <div class="incident-grid">
+      ${rows}
+      ${extraRows}
+    </div>
+    <div class="incident-description">${i.description || "—"}</div>
+    <div id="comments-${i.id}" class="incident-comments">Loading comments...</div>
+    <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
+    &nbsp; |&nbsp;
+    <a href="${editUrl}" class="edit-link">Edit</a>
+    </div>
+  </div>
+`;
+
+
 }
 }
 
