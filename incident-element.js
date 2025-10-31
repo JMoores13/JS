@@ -107,15 +107,15 @@ connectedCallback() {
   }
 }
 
- async fetchComments(incidentId) {
+ async fetchComments(objectEntryId) {
   try {
-    const res = await fetch(`/o/c/comments?filter=r_commentOnIncident_c_incidentId eq ${incidentId}&pageSize=200`);
+    const res = await fetch(`/o/c/comments?filter=r_commentOnIncident_c_incidentId eq ${objectEntryId}&pageSize=200`);
     if (!res.ok) {
       console.error("Comments fetch failed:", res.status, await res.text());
       return [];
     }
     const data = await res.json();
-    console.log("Comments API response for", incidentId, data);
+    console.log("Comments API response for", objectEntryId, data);
     return data.items || [];
   } catch (e) {
     console.error("Error fetching comments:", e);
@@ -166,16 +166,17 @@ connectedCallback() {
 
   // After rendering, hydrate comments for expanded incidents
   this.expandedIds.forEach(async (id) => {
+    const incident = this.allItems.find(i => String(i.id) === id);
+    if (!incident) return;
+    
     const container = this.querySelector(`#comments-${id}`);
     if (container) {
-      const comments = await this.fetchComments(id);
+      const comments = await this.fetchComments(incident.objectEntryId);
       container.innerHTML = comments.length
         ? comments.map(c => `<div class="comment"><em>${c.creator?.name || "Anon"}:</em> ${c.comment}</div>`).join("")
         : "<div>No comments yet.</div>";
     }
   });
-
-
 
   this.querySelectorAll(".toggle-link").forEach((el) => {
     el.addEventListener("click", (e) => {
