@@ -74,6 +74,11 @@ connectedCallback() {
         margin-top: 0.25em;
         fontsize: 0.9em;
       }
+      .comments-separator {
+        margin: 0.75em 0;
+        border: 0;
+        border-top: 1px solid #ccc;
+      }
     </style>
     <h2>Incident List</h2>
     <div class="search-bar">
@@ -104,7 +109,7 @@ connectedCallback() {
 
   async fetchComments(incidentId) {
   try {
-    const res = await fetch(`/o/c/comments?filter=r_commentOnIncident_c_incidentId eq '${incidentId}'`);
+    const res = await fetch(`/o/c/comments?filter=r_commentOnIncident_c_incidentId eq ${incidentId}`);
     const data = await res.json();
     return data.items || [];
   } catch (e) {
@@ -301,6 +306,7 @@ return `
       ${extraRows}
     </div>
     <div class="incident-description">${i.description || "—"}</div>
+    <hr class="comments-separator"/>
     <div id="comments-${i.id}" class="incident-comments">Loading comments...</div>
     <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
     &nbsp; |&nbsp;
