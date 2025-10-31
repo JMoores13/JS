@@ -99,7 +99,7 @@ class IncidentElement extends HTMLElement {
 
   async loadData() {
     try {
-      const res = await fetch("/o/c/incidents");
+      const res = await fetch("/o/c/incidents?nestedFields=commentOnIncident");
       const data = await res.json();
       this.allItems = data.items || [];
       this.renderList();
@@ -108,22 +108,6 @@ class IncidentElement extends HTMLElement {
       this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
     }
   }
-
- async fetchComments(incidentId) {
-  try {
-    const res = await fetch(`/o/c/comments?pageSize=200`);
-    const data = await res.json();
-    console.log("All comments:", data.items); // add this back
-    const matches = (data.items || []).filter(
-      c => c.r_commentOnIncident_c_incidentId === incidentId
-    );
-    console.log("Matches for incident", incidentId, matches); // add this back
-    return matches;
-  } catch (e) {
-    console.error("Error fetching comments:", e);
-    return [];
-  }
-}
 
   renderList() {
     const start = this.currentPage * this.pageSize;
@@ -167,19 +151,13 @@ class IncidentElement extends HTMLElement {
     this.querySelector("#incident-list").innerHTML = listHTML;
 
     // After rendering, hydrate comments for expanded incidents
-    this.expandedIds.forEach(async (id) => {
-      console.log("Hydrating comments for incident", id);
-      const incident = this.allItems.find(i => String(i.id) === id);
-      if (!incident) return;
-
-      const container = this.querySelector(`#comments-${id}`);
-      if (container) {
-        const comments = await this.fetchComments(incident.id);
-        container.innerHTML = comments.length
-          ? comments.map(c => `<div class="comment"><em>${c.creator?.name || "Anon"}:</em> ${c.comment}</div>`).join("")
-          : "<div>No comments yet.</div>";
-      }
-    });
+    const container = this.querySelector(`#comments-${id}`);
+    if (container) {
+      const comments = incident.comments || [];
+      container.innerHTML = comments.length
+        ? comments.map(c => `<div class="comment"><em>${c.creator?.name || "Anon"}:</em> ${c.comment}</div>`).join("")
+        : "<div>No comments yet.</div>";
+    }
 
     this.querySelectorAll(".toggle-link").forEach((el) => {
       el.addEventListener("click", (e) => {
