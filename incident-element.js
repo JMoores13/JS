@@ -153,13 +153,18 @@ class IncidentElement extends HTMLElement {
     this.querySelector("#incident-list").innerHTML = listHTML;
 
     // After rendering, hydrate comments for expanded incidents
-    const container = this.querySelector(`#comments-${id}`);
-    if (container) {
-      const comments = incident.comments || [];
-      container.innerHTML = comments.length
-        ? comments.map(c => `<div class="comment"><em>${c.creator?.name || "Anon"}:</em> ${c.comment}</div>`).join("")
-        : "<div>No comments yet.</div>";
-    }
+    this.expandedIds.forEach((id) => {
+      const incident = this.allItems.find(i => String(i.id) === id);
+      if (!incident) return;
+    
+      const container = this.querySelector(`#comments-${id}`);
+      if (container) {
+        const comments = incident.commentOnIncident || [];
+        container.innerHTML = comments.length
+          ? comments.map(c => `<div class="comment"><em>${c.creator?.name || "Anon"}:</em> ${c.comment}</div>`).join("")
+          : "<div>No comments yet.</div>";
+      }
+    });
 
     this.querySelectorAll(".toggle-link").forEach((el) => {
       el.addEventListener("click", (e) => {
