@@ -70,7 +70,7 @@ connectedCallback() {
         border: 1px solid #ccc;
         border-radius: 4px;
       }
-      .incident-comments.comment{
+      .incident-comments .comment{
         margin-top: 0.25em;
         fontsize: 0.9em;
       }
@@ -109,7 +109,7 @@ connectedCallback() {
 
   async fetchComments(incidentId) {
   try {
-    const res = await fetch(`/o/c/comments?filter=r_commentOnIncident_c_incidentId eq ${incidentId}`);
+    const res = await fetch(`/o/c/comments?filter=r_commentOnIncident_c_incidentId eq ${incidentId}&pageSize=200`);
     const data = await res.json();
     return data.items || [];
   } catch (e) {
@@ -284,7 +284,7 @@ renderIncident(i) {
     ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
   `;
 // Expanded block with comments
-setTimeout(async () => {
+(async () => {
   const container = this.querySelector(`#comments-${i.id}`);
   if (container) {
     const comments = await this.fetchComments(i.id);
@@ -292,7 +292,7 @@ setTimeout(async () => {
       ? comments.map(c => `<div class="comment"><em>${c.creator?.name || "Anon"}:</em> ${c.comment}</div>`).join("")
       : "<div>No comments yet.</div>";
   }
-});
+})();
 
 return `
   <div class="incident-entry">
