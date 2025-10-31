@@ -10,6 +10,7 @@ class IncidentElement extends HTMLElement {
   }
 
   connectedCallback() {
+    console.log("incidentElement connected");
     this.innerHTML = `
       <style>
       .incident-entry {
@@ -167,6 +168,7 @@ class IncidentElement extends HTMLElement {
 
     // After rendering, hydrate comments for expanded incidents
     this.expandedIds.forEach(async (id) => {
+      console.log("Hydrating comments for incident", id);
       const incident = this.allItems.find(i => String(i.id) === id);
       if (!incident) return;
 
