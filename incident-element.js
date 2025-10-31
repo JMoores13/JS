@@ -108,20 +108,21 @@ class IncidentElement extends HTMLElement {
     }
   }
 
-  async fetchComments(incidentId) {
-    try {
-      // Fetch all comments and filter client-side
-      const res = await fetch(`/o/c/comments?pageSize=200`);
-      const data = await res.json();
-      const allComments = data.items || [];
-      return allComments.filter(
-        c => c.r_commentOnIncident_c_incidentId === incidentId
-      );
-    } catch (e) {
-      console.error("Error fetching comments:", e);
-      return [];
-    }
+ async fetchComments(incidentId) {
+  try {
+    const res = await fetch(`/o/c/comments?pageSize=200`);
+    const data = await res.json();
+    console.log("All comments:", data.items); // add this back
+    const matches = (data.items || []).filter(
+      c => c.r_commentOnIncident_c_incidentId === incidentId
+    );
+    console.log("Matches for incident", incidentId, matches); // add this back
+    return matches;
+  } catch (e) {
+    console.error("Error fetching comments:", e);
+    return [];
   }
+}
 
   renderList() {
     const start = this.currentPage * this.pageSize;
