@@ -99,7 +99,9 @@ class IncidentElement extends HTMLElement {
 
   async loadData() {
     try {
-      const res = await fetch("/o/c/incidents?nestedFields=commentOnIncident");
+      const res = await fetch("/o/c/incidents?nestedFields=commentOnIncident", {
+        headers: { "Accept": "application/json" }
+      });
       const data = await res.json();
       this.allItems = data.items || [];
       this.renderList();
