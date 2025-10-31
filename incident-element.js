@@ -301,7 +301,7 @@ class IncidentElement extends HTMLElement {
         </div>
         <div class="incident-description">${i.description || "—"}</div>
         <hr class="comments-separator"/>
-        <div class="comment-header"> Comments: </div>
+        <div class="comment-header"> Updates: </div>
         <div id="comments-${i.id}" class="incident-comments">Loading comments...</div>
         <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
         &nbsp; |&nbsp;
