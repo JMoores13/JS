@@ -103,49 +103,46 @@ class MarkerMapElement extends HTMLElement {
     lonField.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
-  async renderMap() {
-    const map = L.map(this.querySelector("#map")).setView([56.1304, -106.3468], 3);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
-    }).addTo(map);
+async renderMap() {
+  const map = L.map(this.querySelector("#map")).setView([56.1304, -106.3468], 3);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
+  }).addTo(map);
 
-    let marker;
+  let marker;
 
-    // Hydrate with Lat and Long if they are set
-    let lat = parseFloat(document.querySelector('[name="latitude"]')?.value);
-    let lon = parseFloat(document.querySelector('[name="longitude"]')?.value);
+  // Always hydrate from DMS fields
+  const latDMS = document.querySelector('[name="latitudeDMS"]')?.value;
+  const lonDMS = document.querySelector('[name="longitudeDMS"]')?.value;
 
-    if (isNaN(lat) || isNaN(lon)) {
-      const latDMS = document.querySelector('[name="latitudeDMS"]')?.value;
-      const lonDMS = document.querySelector('[name="longitudeDMS"]')?.value;
-      lat = this.dmsToDecimal(latDMS);
-      lon = this.dmsToDecimal(lonDMS);
-    }
+  let lat = this.dmsToDecimal(latDMS);
+  let lon = this.dmsToDecimal(lonDMS);
 
-    if (!isNaN(lat) && !isNaN(lon)) {
-      marker = L.marker([lat, lon], { draggable: true }).addTo(map);
-      map.setView([lat, lon], 8);
+  if (!isNaN(lat) && !isNaN(lon)) {
+    marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+    map.setView([lat, lon], 8);
+    marker.on("dragend", () => {
+      const pos = marker.getLatLng();
+      this.updateLatLon(pos.lat, pos.lng);
+    });
+    this.updateLatLon(lat, lon);
+  }
+
+  // Allow user to click to place/move marker
+  map.on("click", (e) => {
+    const { lat, lng } = e.latlng;
+    if (marker) {
+      marker.setLatLng([lat, lng]);
+    } else {
+      marker = L.marker([lat, lng], { draggable: true }).addTo(map);
       marker.on("dragend", () => {
         const pos = marker.getLatLng();
         this.updateLatLon(pos.lat, pos.lng);
       });
-      this.updateLatLon(lat, lon);
     }
-
-    map.on("click", (e) => {
-      const { lat, lng } = e.latlng;
-      if (marker) {
-        marker.setLatLng([lat, lng]);
-      } else {
-        marker = L.marker([lat, lng], { draggable: true }).addTo(map);
-        marker.on("dragend", () => {
-          const pos = marker.getLatLng();
-          this.updateLatLon(pos.lat, pos.lng);
-        });
-      }
-      this.updateLatLon(lat, lng);
-    });
-  }
+    this.updateLatLon(lat, lng);
+  });
+}
 }
 
 customElements.define("marker-map", MarkerMapElement);
