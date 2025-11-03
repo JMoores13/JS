@@ -60,8 +60,8 @@ class MarkerMapElement extends HTMLElement {
   }
 
   updateLatLon(lat, lng) {
-    let latField = document.querySelector('[name="latitude"]');
-    let lonField = document.querySelector('[name="longitude"]');
+    let latField = document.querySelector('[name="latitudeDMS"]');
+    let lonField = document.querySelector('[name="longitudeDMS"]');
 
     if (!latField) {
       latField = document.createElement("input");
