@@ -84,18 +84,18 @@ class MarkerMapElement extends HTMLElement {
     if (!latField) {
       latField = document.createElement("input");
       latField.type = "hidden";
-      latField.name = "latitude";
+      latField.name = "latitudeDMS";
       document.forms[0].appendChild(latField);
     }
     if (!lonField) {
       lonField = document.createElement("input");
       lonField.type = "hidden";
-      lonField.name = "longitude";
+      lonField.name = "longitudeDMS";
       document.forms[0].appendChild(lonField);
     }
 
     latField.value = latDMS;
-    lonField.value = lngDMS;
+    lonField.value = lonDMS;
 
     latField.dispatchEvent(new Event("input", { bubbles: true }));
     lonField.dispatchEvent(new Event("input", { bubbles: true }));
