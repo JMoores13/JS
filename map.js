@@ -83,8 +83,23 @@ dmsToDecimal(dms) {
       const bounds = [];
 
       data.items.forEach((item) => {
-        const lat = this.dmsToDecimal(item.latitudeDMS);
-        const lng = this.dmsToDecimal(item.longitudeDMS);
+        let lat = this.dmsToDecimal(item.latitudeDMS);
+        let lng = this.dmsToDecimal(item.longitudeDMS);
+        
+        // If DMS not provided or invalid, try MGRS
+        if ((isNaN(lat) || isNaN(lng)) && window.mgrs && item.mGRS) {
+          try {
+            const [lngVal, latVal] = window.mgrs.toPoint(item.mGRS);
+            if (!isNaN(latVal) && !isNaN(lngVal)) {
+              lat = latVal;
+              lng = lngVal;
+            }
+          } catch (e) {
+            console.warn("Invalid MGRS for incident:", item.mGRS);
+          }
+        }
+        
+        // If still invalid, skip
         if (isNaN(lat) || isNaN(lng)) return;
 
         const statusKey = item.statusOfIncident?.key?.toLowerCase();
