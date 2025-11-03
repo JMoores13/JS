@@ -95,7 +95,7 @@ dmsToDecimal(dms) {
             color = "blue";
             break;
           case "inprogress":
-            color = "yellow";
+            color = "orange";
             break;
           case "inactive":
             color = "red";
