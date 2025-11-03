@@ -59,7 +59,25 @@ class MarkerMapElement extends HTMLElement {
     return decimal;
   }
 
+  decimalToDMS(lat, lng) {
+  const toDMS = (dec, isLat) => {
+    const dir = dec < 0 ? (isLat ? "S" : "W") : (isLat ? "N" : "E");
+    const abs = Math.abs(dec);
+    const deg = Math.floor(abs);
+    const minFloat = (abs - deg) * 60;
+    const min = Math.floor(minFloat);
+    const sec = Math.round((minFloat - min) * 60);
+    return `${deg}°${min}′${sec}″${dir}`;
+  };
+  return {
+    latDMS: toDMS(lat, true),
+    lonDMS: toDMS(lng, false)
+  };
+}
+
   updateLatLon(lat, lng) {
+    const { latDMS, lonDMS } = this.decimalToDMS(lat, lng);
+    
     let latField = document.querySelector('[name="latitudeDMS"]');
     let lonField = document.querySelector('[name="longitudeDMS"]');
 
@@ -76,8 +94,8 @@ class MarkerMapElement extends HTMLElement {
       document.forms[0].appendChild(lonField);
     }
 
-    latField.value = lat.toFixed(6);
-    lonField.value = lng.toFixed(6);
+    latField.value = latDMS;
+    lonField.value = lngDMS;
 
     latField.dispatchEvent(new Event("input", { bubbles: true }));
     lonField.dispatchEvent(new Event("input", { bubbles: true }));
