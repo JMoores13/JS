@@ -33,6 +33,17 @@ connectedCallback() {
     }
   }
 
+  getMarkerIcon(color) {
+  return new L.Icon({
+    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+    shadowUrl: "https://unpkg.com/leaflet/dist/images/marker-shadow.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  });
+}
+
 dmsToDecimal(dms) {
   if (!dms) return NaN;
   let str = dms.trim();
@@ -76,10 +87,28 @@ dmsToDecimal(dms) {
         const lng = this.dmsToDecimal(item.longitudeDMS);
         if (isNaN(lat) || isNaN(lng)) return;
 
+        const statusKey = item.statusOfIncident?.key?.toLowerCase();
+        let color = "blue"; // default
+        
+        switch (statusKey) {
+          case "active":
+            color = "blue";
+            break;
+          case "inprogress":
+            color = "yellow";
+            break;
+          case "inactive":
+            color = "grey";
+            break;
+          case "open":
+            color = "green";
+            break;
+        }
+
         const label = item.incident || "Unnamed";
         const url = `/web/incident-reporting-tool/edit-incident?objectEntryId=${item.id}`;
 
-        const marker = L.marker([lat, lng]).addTo(map);
+        const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(color) }).addTo(map);
         marker.bindPopup(`<a href="${url}" target="_self">${label}</a>`);
         bounds.push([lat, lng]);
       });
