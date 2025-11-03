@@ -128,6 +128,24 @@ async renderMap() {
     this.updateLatLon(lat, lon);
   }
 
+  const latField = document.querySelector('[name="latitudeDMS"]');
+const lonField = document.querySelector('[name="longitudeDMS"]');
+
+[latField, lonField].forEach(field => {
+  field?.addEventListener("input", () => {
+    const lat = this.dmsToDecimal(latField.value);
+    const lon = this.dmsToDecimal(lonField.value);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      if (!marker) {
+        marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+      } else {
+        marker.setLatLng([lat, lon]);
+      }
+      map.setView([lat, lon], 8);
+    }
+  });
+});
+
   // Allow user to click to place/move marker
   map.on("click", (e) => {
     const { lat, lng } = e.latlng;
