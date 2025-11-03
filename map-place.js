@@ -12,8 +12,10 @@ class MarkerMapElement extends HTMLElement {
       <div id="map">Loading map...</div>
     `;
 
-    this.loadLeaflet().then(() => {
-      requestAnimationFrame(() => this.renderMap());
+   this.loadLeaflet()
+      .then(() => this.loadMgrs())
+      .then(() => {
+        requestAnimationFrame(() => this.renderMap());
     });
   }
 
@@ -32,6 +34,16 @@ class MarkerMapElement extends HTMLElement {
       });
     }
   }
+  async loadMgrs() {
+  if (!window.mgrs) {
+    await new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://JMoores13.github.io/JS/mgrs.js"; // 
+      script.onload = resolve;
+      document.head.appendChild(script);
+    });
+  }
+}
 
   dmsToDecimal(dms) {
     if (!dms) return NaN;
@@ -80,6 +92,7 @@ class MarkerMapElement extends HTMLElement {
     
     let latField = document.querySelector('[name="latitudeDMS"]');
     let lonField = document.querySelector('[name="longitudeDMS"]');
+    let mgrsField = document.querySelector('[name="mGRS"]');
 
     if (!latField) {
       latField = document.createElement("input");
@@ -93,14 +106,25 @@ class MarkerMapElement extends HTMLElement {
       lonField.name = "longitudeDMS";
       document.forms[0].appendChild(lonField);
     }
+    if (!mgrsField) {
+      mgrsField = document.createElement("input");
+      mgrsField.type = "hidden";
+      mgrsField.name = "mGRS";
+      document.forms[0].appendChild(mgrsField);
+    }
 
     latField.value = latDMS;
     lonField.value = lonDMS;
+
+      if (window.mgrs) {
+    mgrsField.value = window.mgrs.forward([lng, lat], 5);
+  }
 
     console.log("Updating DMS fields:", latDMS, lonDMS);
 
     latField.dispatchEvent(new Event("input", { bubbles: true }));
     lonField.dispatchEvent(new Event("input", { bubbles: true }));
+    mgrsField.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
 async renderMap() {
@@ -128,6 +152,15 @@ async renderMap() {
     this.updateLatLon(lat, lon);
   }
 
+  if ((isNaN(lat) || isNaN(lon)) && window.mgrs) {
+  const mgrsVal = document.querySelector('[name="mGRS"]')?.value;
+  if (mgrsVal) {
+    const [lng, latFromMgrs] = window.mgrs.toPoint(mgrsVal);
+    lat = latFromMgrs;
+    lon = lng;
+  }
+}
+
   const latField = document.querySelector('[name="latitudeDMS"]');
 const lonField = document.querySelector('[name="longitudeDMS"]');
 
@@ -145,7 +178,27 @@ const lonField = document.querySelector('[name="longitudeDMS"]');
     }
   });
 });
-
+  
+const mgrsField = document.querySelector('[name="mGRS"]');
+mgrsField?.addEventListener("input", () => {
+  const mgrsVal = mgrsField.value;
+  if (mgrsVal && window.mgrs) {
+    try {
+      const [lngV, latV] = window.mgrs.toPoint(mgrsVal);
+      if (!isNaN(latV) && !isNaN(lngV)) {
+        if (!marker) {
+          marker = L.marker([latV, lngV], { draggable: true }).addTo(map);
+        } else {
+          marker.setLatLng([latV, lngV]);
+        }
+        map.setView([latV, lngV], 8);
+        this.updateLatLon(latV, lngV);
+      }
+    } catch (e) {
+      console.warn("Invalid MGRS:", mgrsVal);
+    }
+  }
+});
   // Allow user to click to place/move marker
   map.on("click", (e) => {
     const { lat, lng } = e.latlng;
