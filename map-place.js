@@ -68,4 +68,4 @@ dmsToDecimal(dms) {
   }
 }
 
-customElements.define("incident-map", MarkerMapElement);
+customElements.define("marker-map", MarkerMapElement);
