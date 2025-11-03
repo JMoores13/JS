@@ -97,6 +97,8 @@ class MarkerMapElement extends HTMLElement {
     latField.value = latDMS;
     lonField.value = lonDMS;
 
+    console.log("Updating DMS fields:", latDMS, lonDMS);
+
     latField.dispatchEvent(new Event("input", { bubbles: true }));
     lonField.dispatchEvent(new Event("input", { bubbles: true }));
   }
