@@ -164,18 +164,22 @@ async renderMap() {
   const latField = document.querySelector('[name="latitudeDMS"]');
 const lonField = document.querySelector('[name="longitudeDMS"]');
 
+let inputTimer;
 [latField, lonField].forEach(field => {
   field?.addEventListener("input", () => {
-    const lat = this.dmsToDecimal(latField.value);
-    const lon = this.dmsToDecimal(lonField.value);
-    if (!isNaN(lat) && !isNaN(lon)) {
-      if (!marker) {
-        marker = L.marker([lat, lon], { draggable: true }).addTo(map);
-      } else {
-        marker.setLatLng([lat, lon]);
+    clearTimeout(inputTimer);
+    inputTimer = setTimeout(() => {
+      const lat = this.dmsToDecimal(latField.value);
+      const lon = this.dmsToDecimal(lonField.value);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        if (!marker) {
+          marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+        } else {
+          marker.setLatLng([lat, lon]);
+        }
+        map.setView([lat, lon], 8);
       }
-      map.setView([lat, lon], 8);
-    }
+    }, 500); // wait 500ms after typing stops
   });
 });
   
