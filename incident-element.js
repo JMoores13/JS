@@ -18,7 +18,7 @@ class IncidentElement extends HTMLElement {
         border-bottom: 1px solid #ccc;
       }
       .incident-title {
-        font-size: 0.75em;
+        font-size: 1.1em;
         font-weight: bold;
         margin-bottom: 0.5em;
       }
@@ -27,6 +27,7 @@ class IncidentElement extends HTMLElement {
         color: white;
         padding: 0.31em;
         border-radius: 0.25em;
+        font-size: 1.3em
       }
       .incident-description {
         margin-top: 0.5em;
