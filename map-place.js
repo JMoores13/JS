@@ -8,8 +8,10 @@ class MarkerMapElement extends HTMLElement {
       <style>
         #map { height: 500px; width: 100%; }
         .leaflet-container { font: inherit; }
+        #clearBtn { margin-top: 8px; padding: 4px 8px; }
       </style>
       <div id="map">Loading map...</div>
+      <button id="clearBtn" type="button">Clear</button>
     `;
 
    this.loadLeaflet()
@@ -162,20 +164,25 @@ async renderMap() {
       return null;
     }
   };
-  const ensureMarker = (lat, lng) => {
-    if (isNaN(lat) || isNaN(lng)) return;
-    if (!marker) {
-      marker = L.marker([lat, lng], { draggable: true }).addTo(map);
-      marker.on("dragend", () => {
-        const pos = marker.getLatLng();
-        this.updateLatLon(pos.lat, pos.lng);
-      });
-    } else {
-      marker.setLatLng([lat, lng]);
-    }
+ const ensureMarker = (lat, lng) => {
+  if (isNaN(lat) || isNaN(lng)) return;
+
+  if (!marker) {
+    // First time: create marker and recenter
+    marker = L.marker([lat, lng], { draggable: true }).addTo(map);
     map.setView([lat, lng], 8);
-    this.updateLatLon(lat, lng);
-  };
+
+    marker.on("dragend", () => {
+      const pos = marker.getLatLng();
+      this.updateLatLon(pos.lat, pos.lng);
+    });
+  } else {
+    // Subsequent updates: just move marker, don't recenter
+    marker.setLatLng([lat, lng]);
+  }
+
+  this.updateLatLon(lat, lng);
+};
 
   // Hydrate from DMS
   const latDMS = document.querySelector('[name="latitudeDMS"]')?.value;
@@ -221,6 +228,33 @@ async renderMap() {
       console.warn("Invalid MGRS:", mgrsField.value);
     }
   });
+
+  // Clear button logic
+const clearBtn = this.querySelector("#clearBtn");
+clearBtn.addEventListener("click", () => {
+  // Remove marker if it exists
+  if (marker) {
+    map.removeLayer(marker);
+    marker = null;
+  }
+
+  // Clear fields
+  const latField = document.querySelector('[name="latitudeDMS"]');
+  const lonField = document.querySelector('[name="longitudeDMS"]');
+  const mgrsField = document.querySelector('[name="mGRS"]');
+
+  if (latField) latField.value = "";
+  if (lonField) lonField.value = "";
+  if (mgrsField) mgrsField.value = "";
+
+  // Fire input events so any bound logic reacts
+  latField?.dispatchEvent(new Event("input", { bubbles: true }));
+  lonField?.dispatchEvent(new Event("input", { bubbles: true }));
+  mgrsField?.dispatchEvent(new Event("input", { bubbles: true }));
+
+  // Optionally reset map view
+  map.setView([56.1304, -106.3468], 3);
+});
 
   // Map click
   map.on("click", (e) => {
