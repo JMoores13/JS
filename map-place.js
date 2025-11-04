@@ -6,11 +6,24 @@ class MarkerMapElement extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <style>
-        #map { height: 500px; width: 100%; }
+        #map { 
+          height: 500px; 
+          width: 100%; 
+          border: 0.2em solid rgb(45, 90, 171);
+          border-radius: 0px;
+        }
         .leaflet-container { font: inherit; }
-        #clearBtn { margin-top: 8px; padding: 4px 8px; }
-        border: 0.2em solid rgb(45, 90, 171);
-        border-radius: 0px;
+        #clearBtn { 
+          margin-top: 8px; 
+          padding: 4px 8px; 
+          color: white;
+          background-color: #0b5fff;
+          border-style: solid;
+          border-width: 0.0625rem;
+          border-radius: 0.25rem;
+          display: inline-block;
+        }
+        
       </style>
       <div id="map">Loading map...</div>
       <button id="clearBtn" type="button">Clear</button>
