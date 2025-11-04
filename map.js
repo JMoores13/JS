@@ -6,7 +6,12 @@ class IncidentMapElement extends HTMLElement {
 connectedCallback() {
   this.innerHTML = `
     <style>
-      #map { height: 500px; width: 100%; }
+      #map { 
+        height: 500px; 
+        width: 100%;
+        border: 0.2em solid rgb(45, 90, 171);
+        border-radius: 0px; 
+      }
       .leaflet-container { font: inherit; }
     </style>
     <div id="map">Loading map...</div>
