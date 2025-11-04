@@ -26,7 +26,7 @@ class IncidentElement extends HTMLElement {
         background-color: rgb(45, 90, 171);
         color: white;
         padding: 0.5em;
-        border-radius: 4px;
+        border-radius: 0.25em;
       }
       .incident-description {
         margin-top: 0.5em;
@@ -92,7 +92,7 @@ class IncidentElement extends HTMLElement {
         margin-bottom: 0.5em;
       }
       </style>
-      <h2>Incident List</h2>
+      <h2 class="incident-title-header">Incident List</h2>
       <div class="search-bar">
         <input type="text" id="search-input" placeholder="Search"/>
       </div>
