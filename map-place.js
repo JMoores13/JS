@@ -168,12 +168,28 @@ async renderMap() {
   }
 
   if ((isNaN(lat) || isNaN(lon)) && window.mgrs) {
-  const mgrsVal = document.querySelector('[name="mGRS"]')?.value;
+  let mgrsVal = document.querySelector('[name="mGRS"]')?.value;
   if (mgrsVal) {
-    const [lng, latFromMgrs] = window.mgrs.toPoint(mgrsVal);
-    lat = latFromMgrs;
-    lon = lng;
+    mgrsVal = mgrsVal.replace(/\s+/g, "").toUpperCase(); // normalize
+    try {
+      const [lng, latFromMgrs] = window.mgrs.toPoint(mgrsVal);
+      lat = latFromMgrs;
+      lon = lng;
+
+      if (!isNaN(lat) && !isNaN(lon)) {
+        marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+        map.setView([lat, lon], 8);
+        marker.on("dragend", () => {
+          const pos = marker.getLatLng();
+          this.updateLatLon(pos.lat, pos.lng);
+        });
+        this.updateLatLon(lat, lon);
+      }
+    } catch (e) {
+      console.warn("Invalid MGRS:", mgrsVal);
+    }
   }
+}
 }
 
   const latField = document.querySelector('[name="latitudeDMS"]');
