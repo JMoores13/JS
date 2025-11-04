@@ -203,6 +203,8 @@ mgrsField?.addEventListener("input", () => {
   const mgrsVal = mgrsField.value;
   if (mgrsVal && window.mgrs) {
     try {
+      // Normalize by removing spaces and forcing uppercase
+      mgrsVal = mgrsVal.replace(/\s+/g, "").toUpperCase();
       const [lngV, latV] = window.mgrs.toPoint(mgrsVal);
       if (!isNaN(latV) && !isNaN(lngV)) {
         if (!marker) {
