@@ -18,14 +18,14 @@ class IncidentElement extends HTMLElement {
         border-bottom: 1px solid #ccc;
       }
       .incident-title {
-        font-size: 1.25em;
+        font-size: 1em;
         font-weight: bold;
         margin-bottom: 0.5em;
       }
        h2.incident-title-header {
         background-color: rgb(45, 90, 171);
         color: white;
-        padding: 0.5em;
+        padding: 0.25em;
         border-radius: 0.25em;
       }
       .incident-description {
