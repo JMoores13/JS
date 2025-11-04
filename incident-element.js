@@ -22,6 +22,12 @@ class IncidentElement extends HTMLElement {
         font-weight: bold;
         margin-bottom: 0.5em;
       }
+       h2.incident-title-header {
+        background-color: rgb(45, 90, 171);
+        color: white;
+        padding: 0.5em;
+        border-radius: 4px;
+      }
       .incident-description {
         margin-top: 0.5em;
       }
