@@ -88,7 +88,7 @@ class IncidentElement extends HTMLElement {
         border-top: 1px solid #ccc;
       }
       .comment-header{
-        font-size: 1.25em;
+        font-size: 1em;
         font-weight: bold;
         margin-bottom: 0.5em;
       }
