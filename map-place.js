@@ -45,87 +45,102 @@ class MarkerMapElement extends HTMLElement {
   }
 }
 
-  dmsToDecimal(dms) {
-    if (!dms) return NaN;
-    let str = dms.trim();
+ dmsToDecimal(dms) {
+  if (!dms) return NaN;
+  let str = dms.trim()
+    .replace(/[°º]/g, " ")
+    .replace(/[′’']/g, " ")
+    .replace(/[″”"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-    str = str
-      .replace(/[°º]/g, " ")
-      .replace(/[′’']/g, " ")
-      .replace(/[″”"]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+  const parts = str.split(" ");
+  if (parts.length < 4) return NaN;
 
-    const parts = str.split(" ");
-    if (parts.length < 4) return NaN;
+  const degrees = parseFloat(parts[0]);
+  const minutes = parseFloat(parts[1]);
+  const seconds = parseFloat(parts[2]);
+  const direction = parts[3].toUpperCase();
 
-    const degrees = parseFloat(parts[0]);
-    const minutes = parseFloat(parts[1]);
-    const seconds = parseFloat(parts[2]);
-    const direction = parts[3].toUpperCase();
+  if (isNaN(degrees) || isNaN(minutes) || isNaN(seconds)) return NaN;
 
-    if (isNaN(degrees) || isNaN(minutes) || isNaN(seconds)) return NaN;
+  let decimal = degrees + minutes / 60 + seconds / 3600;
+  if (["S", "W"].includes(direction)) decimal *= -1;
 
-    let decimal = degrees + minutes / 60 + seconds / 3600;
-    if (["S", "W"].includes(direction)) decimal *= -1;
-    return decimal;
-  }
+  // Range validation
+  if ((direction === "N" || direction === "S") && Math.abs(decimal) > 90) return NaN;
+  if ((direction === "E" || direction === "W") && Math.abs(decimal) > 180) return NaN;
 
-  decimalToDMS(lat, lng) {
+  return decimal;
+}
+
+decimalToDMS(lat, lng) {
   const toDMS = (dec, isLat) => {
+    // Normalize longitude into [-180, 180]
+    if (!isLat) {
+      dec = ((dec + 180) % 360 + 360) % 360 - 180;
+    }
+
     const dir = dec < 0 ? (isLat ? "S" : "W") : (isLat ? "N" : "E");
     const abs = Math.abs(dec);
     const deg = Math.floor(abs);
     const minFloat = (abs - deg) * 60;
     const min = Math.floor(minFloat);
     const sec = Math.round((minFloat - min) * 60);
-    return `${deg}°${min}′${sec}″${dir}`;
+
+    // zero‑pad for readability
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${deg}°${pad(min)}′${pad(sec)}″${dir}`;
   };
+
   return {
     latDMS: toDMS(lat, true),
     lonDMS: toDMS(lng, false)
   };
 }
 
-  updateLatLon(lat, lng) {
-    const { latDMS, lonDMS } = this.decimalToDMS(lat, lng);
-    
-    let latField = document.querySelector('[name="latitudeDMS"]');
-    let lonField = document.querySelector('[name="longitudeDMS"]');
-    let mgrsField = document.querySelector('[name="mGRS"]');
+updateLatLon(lat, lng) {
+  // Normalize longitude before converting
+  if (lng > 180 || lng < -180) {
+    lng = ((lng + 180) % 360 + 360) % 360 - 180;
+  }
 
-    if (!latField) {
-      latField = document.createElement("input");
-      latField.type = "hidden";
-      latField.name = "latitudeDMS";
-      document.forms[0].appendChild(latField);
-    }
-    if (!lonField) {
-      lonField = document.createElement("input");
-      lonField.type = "hidden";
-      lonField.name = "longitudeDMS";
-      document.forms[0].appendChild(lonField);
-    }
-    if (!mgrsField) {
-      mgrsField = document.createElement("input");
-      mgrsField.type = "hidden";
-      mgrsField.name = "mGRS";
-      document.forms[0].appendChild(mgrsField);
-    }
+  const { latDMS, lonDMS } = this.decimalToDMS(lat, lng);
 
-    latField.value = latDMS;
-    lonField.value = lonDMS;
+  let latField = document.querySelector('[name="latitudeDMS"]');
+  let lonField = document.querySelector('[name="longitudeDMS"]');
+  let mgrsField = document.querySelector('[name="mGRS"]');
 
-      if (window.mgrs) {
+  if (!latField) {
+    latField = document.createElement("input");
+    latField.type = "hidden";
+    latField.name = "latitudeDMS";
+    document.forms[0].appendChild(latField);
+  }
+  if (!lonField) {
+    lonField = document.createElement("input");
+    lonField.type = "hidden";
+    lonField.name = "longitudeDMS";
+    document.forms[0].appendChild(lonField);
+  }
+  if (!mgrsField) {
+    mgrsField = document.createElement("input");
+    mgrsField.type = "hidden";
+    mgrsField.name = "mGRS";
+    document.forms[0].appendChild(mgrsField);
+  }
+
+  latField.value = latDMS;
+  lonField.value = lonDMS;
+
+  if (window.mgrs) {
     mgrsField.value = window.mgrs.forward([lng, lat], 5);
   }
 
-    console.log("Updating DMS fields:", latDMS, lonDMS);
-
-    latField.dispatchEvent(new Event("input", { bubbles: true }));
-    lonField.dispatchEvent(new Event("input", { bubbles: true }));
-    mgrsField.dispatchEvent(new Event("input", { bubbles: true }));
-  }
+  latField.dispatchEvent(new Event("input", { bubbles: true }));
+  lonField.dispatchEvent(new Event("input", { bubbles: true }));
+  mgrsField.dispatchEvent(new Event("input", { bubbles: true }));
+}
 
 async renderMap() {
   const map = L.map(this.querySelector("#map")).setView([56.1304, -106.3468], 3);
