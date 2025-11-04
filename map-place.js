@@ -9,6 +9,8 @@ class MarkerMapElement extends HTMLElement {
         #map { height: 500px; width: 100%; }
         .leaflet-container { font: inherit; }
         #clearBtn { margin-top: 8px; padding: 4px 8px; }
+        border: 0.2em solid rgb(45, 90, 171);
+        border-radius: 0px;
       </style>
       <div id="map">Loading map...</div>
       <button id="clearBtn" type="button">Clear</button>
