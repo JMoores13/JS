@@ -150,105 +150,82 @@ async renderMap() {
 
   let marker;
 
-  // Always hydrate from DMS fields
-  const latDMS = document.querySelector('[name="latitudeDMS"]')?.value;
-  const lonDMS = document.querySelector('[name="longitudeDMS"]')?.value;
-
-  let lat = this.dmsToDecimal(latDMS);
-  let lon = this.dmsToDecimal(lonDMS);
-
-  if (!isNaN(lat) && !isNaN(lon)) {
-    marker = L.marker([lat, lon], { draggable: true }).addTo(map);
-    map.setView([lat, lon], 8);
-    marker.on("dragend", () => {
-      const pos = marker.getLatLng();
-      this.updateLatLon(pos.lat, pos.lng);
-    });
-    this.updateLatLon(lat, lon);
-  }
-
-  if ((isNaN(lat) || isNaN(lon)) && window.mgrs) {
-  let mgrsVal = document.querySelector('[name="mGRS"]')?.value;
-  if (mgrsVal) {
-    mgrsVal = mgrsVal.replace(/\s+/g, "").toUpperCase(); // normalize
+  // Helpers
+  const normalizeMgrs = (val) => (val || "").replace(/\s+/g, "").toUpperCase();
+  const parseMgrs = (val) => {
+    if (!window.mgrs) return null;
+    const s = normalizeMgrs(val);
     try {
-      const [lng, latFromMgrs] = window.mgrs.toPoint(mgrsVal);
-      lat = latFromMgrs;
-      lon = lng;
-
-      if (!isNaN(lat) && !isNaN(lon)) {
-        marker = L.marker([lat, lon], { draggable: true }).addTo(map);
-        map.setView([lat, lon], 8);
-        marker.on("dragend", () => {
-          const pos = marker.getLatLng();
-          this.updateLatLon(pos.lat, pos.lng);
-        });
-        this.updateLatLon(lat, lon);
-      }
-    } catch (e) {
-      console.warn("Invalid MGRS:", mgrsVal);
+      const [lng, lat] = window.mgrs.toPoint(s);
+      return (isNaN(lat) || isNaN(lng)) ? null : { lat, lng };
+    } catch {
+      return null;
     }
-  }
-}
-
-
-  const latField = document.querySelector('[name="latitudeDMS"]');
-const lonField = document.querySelector('[name="longitudeDMS"]');
-
-let inputTimer;
-[latField, lonField].forEach(field => {
-  field?.addEventListener("input", () => {
-    clearTimeout(inputTimer);
-    inputTimer = setTimeout(() => {
-      const lat = this.dmsToDecimal(latField.value);
-      const lon = this.dmsToDecimal(lonField.value);
-      if (!isNaN(lat) && !isNaN(lon)) {
-        if (!marker) {
-          marker = L.marker([lat, lon], { draggable: true }).addTo(map);
-        } else {
-          marker.setLatLng([lat, lon]);
-        }
-        map.setView([lat, lon], 8);
-      }
-    }, 500); // wait 500ms after typing stops
-  });
-});
-  
-const mgrsField = document.querySelector('[name="mGRS"]');
-mgrsField?.addEventListener("input", () => {
-  const mgrsVal = mgrsField.value;
-  if (mgrsVal && window.mgrs) {
-    try {
-      // Normalize by removing spaces and forcing uppercase
-      mgrsVal = mgrsVal.replace(/\s+/g, "").toUpperCase();
-      const [lngV, latV] = window.mgrs.toPoint(mgrsVal);
-      if (!isNaN(latV) && !isNaN(lngV)) {
-        if (!marker) {
-          marker = L.marker([latV, lngV], { draggable: true }).addTo(map);
-        } else {
-          marker.setLatLng([latV, lngV]);
-        }
-        map.setView([latV, lngV], 8);
-        this.updateLatLon(latV, lngV);
-      }
-    } catch (e) {
-      console.warn("Invalid MGRS:", mgrsVal);
-    }
-  }
-});
-  // Allow user to click to place/move marker
-  map.on("click", (e) => {
-    const { lat, lng } = e.latlng;
-    if (marker) {
-      marker.setLatLng([lat, lng]);
-    } else {
+  };
+  const ensureMarker = (lat, lng) => {
+    if (isNaN(lat) || isNaN(lng)) return;
+    if (!marker) {
       marker = L.marker([lat, lng], { draggable: true }).addTo(map);
       marker.on("dragend", () => {
         const pos = marker.getLatLng();
         this.updateLatLon(pos.lat, pos.lng);
       });
+    } else {
+      marker.setLatLng([lat, lng]);
     }
+    map.setView([lat, lng], 8);
     this.updateLatLon(lat, lng);
+  };
+
+  // Hydrate from DMS
+  const latDMS = document.querySelector('[name="latitudeDMS"]')?.value;
+  const lonDMS = document.querySelector('[name="longitudeDMS"]')?.value;
+  let lat = this.dmsToDecimal(latDMS);
+  let lon = this.dmsToDecimal(lonDMS);
+
+  if (!isNaN(lat) && !isNaN(lon)) {
+    ensureMarker(lat, lon);
+  } else {
+    // Fallback: hydrate from MGRS
+    const mgrsVal = document.querySelector('[name="mGRS"]')?.value;
+    const parsed = parseMgrs(mgrsVal);
+    if (parsed) {
+      lat = parsed.lat;
+      lon = parsed.lng;
+      ensureMarker(lat, lon);
+    }
+  }
+
+  // DMS input listeners (keep in sync)
+  const latField = document.querySelector('[name="latitudeDMS"]');
+  const lonField = document.querySelector('[name="longitudeDMS"]');
+  let inputTimer;
+  [latField, lonField].forEach(field => {
+    field?.addEventListener("input", () => {
+      clearTimeout(inputTimer);
+      inputTimer = setTimeout(() => {
+        const newLat = this.dmsToDecimal(latField.value);
+        const newLon = this.dmsToDecimal(lonField.value);
+        ensureMarker(newLat, newLon);
+      }, 500);
+    });
+  });
+
+  // MGRS input listener (manual entry)
+  const mgrsField = document.querySelector('[name="mGRS"]');
+  mgrsField?.addEventListener("input", () => {
+    const parsed = parseMgrs(mgrsField.value);
+    if (parsed) {
+      ensureMarker(parsed.lat, parsed.lng);
+    } else {
+      console.warn("Invalid MGRS:", mgrsField.value);
+    }
+  });
+
+  // Map click
+  map.on("click", (e) => {
+    const { lat, lng } = e.latlng;
+    ensureMarker(lat, lng);
   });
 }
 }
