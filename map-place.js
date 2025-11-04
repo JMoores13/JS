@@ -18,10 +18,11 @@ class MarkerMapElement extends HTMLElement {
           padding: 4px 8px; 
           color: white;
           background-color: #0b5fff;
-          border-style: 1px solid rgb(11, 95, 255);
+          border-style: solid;
           border-width: 0.0625rem;
           border-radius: 0.25rem;
           display: inline-block;
+          border-color: #0b5fff;
         }
         
       </style>
