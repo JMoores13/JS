@@ -190,7 +190,7 @@ async renderMap() {
     }
   }
 }
-}
+
 
   const latField = document.querySelector('[name="latitudeDMS"]');
 const lonField = document.querySelector('[name="longitudeDMS"]');
