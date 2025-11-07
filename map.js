@@ -15,8 +15,6 @@ connectedCallback() {
       .leaflet-container { font: inherit; }
     </style>
     <div id="map">Loading map...</div>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen/Control.FullScreen.css" />
-    <script src="https://unpkg.com/leaflet.fullscreen/Control.FullScreen.js"></script>
   `;
 
   this.loadLeaflet().then(() => {
@@ -36,6 +34,21 @@ connectedCallback() {
         script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
         script.onload = resolve;
         document.head.appendChild(script);
+      });
+    }
+    
+    // Load fullscreen plugin after Leaflet
+    if (!L.Control.Fullscreen) {
+      const fsCSS = document.createElement("link");
+      fsCSS.rel = "stylesheet";
+      fsCSS.href = "https://unpkg.com/leaflet.fullscreen/Control.FullScreen.css";
+      document.head.appendChild(fsCSS);
+  
+      await new Promise((resolve) => {
+        const fsScript = document.createElement("script");
+        fsScript.src = "https://unpkg.com/leaflet.fullscreen/Control.FullScreen.js";
+        fsScript.onload = resolve;
+        document.head.appendChild(fsScript);
       });
     }
   }
@@ -79,9 +92,10 @@ dmsToDecimal(dms) {
 }
 
   async renderMap() {
-    const map = L.map(this.querySelector("#map"),{  fullscreenControl: true, 
+    const map = L.map(this.querySelector("#map"),{  
+        fullscreenControl: true, 
         fullscreenControlOptions: {
-          position: 'topleft'
+          position: 'topright'
         }
      }).setView([56.1304, -106.3468], 3);
      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
