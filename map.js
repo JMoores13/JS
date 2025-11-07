@@ -15,6 +15,8 @@ connectedCallback() {
       .leaflet-container { font: inherit; }
     </style>
     <div id="map">Loading map...</div>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen/Control.FullScreen.css" />
+    <script src="https://unpkg.com/leaflet.fullscreen/Control.FullScreen.js"></script>
   `;
 
   this.loadLeaflet().then(() => {
@@ -77,7 +79,11 @@ dmsToDecimal(dms) {
 }
 
   async renderMap() {
-    const map = L.map(this.querySelector("#map")).setView([56.1304, -106.3468], 3);
+    const map = L.map(this.querySelector("#map"),{  fullscreenControl: true, 
+        fullscreenControlOptions: {
+          position: 'topleft'
+        }
+     }).setView([56.1304, -106.3468], 3);
      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
