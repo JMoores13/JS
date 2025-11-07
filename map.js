@@ -97,7 +97,11 @@ dmsToDecimal(dms) {
         fullscreenControlOptions: {
           position: 'topright'
         }
-     }).setView([56.1304, -106.3468], 3);
+     }).setView([56.1304, -100.3468], 3);
+    
+     // Add zoom control back at top-left
+     L.control.zoom({ position: 'topleft' }).addTo(map);
+    
      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
