@@ -53,7 +53,7 @@ connectedCallback() {
         });
       }
     }
-  }
+  
   getMarkerIcon(color) {
   return new L.Icon({
     iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
