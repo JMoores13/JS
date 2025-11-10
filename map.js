@@ -21,38 +21,39 @@ connectedCallback() {
     requestAnimationFrame(() => this.renderMap());
   });
 }
-
-  async loadLeaflet() {
-    if (!window.L) {
-      const leafletCSS = document.createElement("link");
-      leafletCSS.rel = "stylesheet";
-      leafletCSS.href = "https://unpkg.com/leaflet/dist/leaflet.css";
-      document.head.appendChild(leafletCSS);
-
-      await new Promise((resolve) => {
-        const script = document.createElement("script");
-        script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
-        script.onload = resolve;
-        document.head.appendChild(script);
-      });
-    }
-    
-    // Load fullscreen plugin after Leaflet
-    if (!L.Control.Fullscreen) {
-      const fsCSS = document.createElement("link");
-      fsCSS.rel = "stylesheet";
-      fsCSS.href = "https://unpkg.com/leaflet.fullscreen/Control.FullScreen.css";
-      document.head.appendChild(fsCSS);
+  static fullscreenLoaded = false;
   
-      await new Promise((resolve) => {
-        const fsScript = document.createElement("script");
-        fsScript.src = "https://unpkg.com/leaflet.fullscreen/Control.FullScreen.js";
-        fsScript.onload = resolve;
-        document.head.appendChild(fsScript);
-      });
+    async loadLeaflet() {
+      if (!window.L) {
+        const leafletCSS = document.createElement("link");
+        leafletCSS.rel = "stylesheet";
+        leafletCSS.href = "https://unpkg.com/leaflet/dist/leaflet.css";
+        document.head.appendChild(leafletCSS);
+  
+        await new Promise((resolve) => {
+          const script = document.createElement("script");
+          script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
+          script.onload = resolve;
+          document.head.appendChild(script);
+        });
+      }
+      if (!IncidentMapElement.fullscreenLoaded) {
+        IncidentMapElement.fullscreenLoaded = true;
+  
+        const fsCSS = document.createElement("link");
+        fsCSS.rel = "stylesheet";
+        fsCSS.href = "https://unpkg.com/leaflet.fullscreen/Control.FullScreen.css";
+        document.head.appendChild(fsCSS);
+  
+        await new Promise((resolve) => {
+          const fsScript = document.createElement("script");
+          fsScript.src = "https://unpkg.com/leaflet.fullscreen/Control.FullScreen.js";
+          fsScript.onload = resolve;
+          document.head.appendChild(fsScript);
+        });
+      }
     }
   }
-
   getMarkerIcon(color) {
   return new L.Icon({
     iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
