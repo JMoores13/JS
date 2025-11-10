@@ -92,7 +92,8 @@ dmsToDecimal(dms) {
 }
 
   async renderMap() {
-    const map = L.map(this.querySelector("#map"),{  
+    const map = L.map(this.querySelector("#map"),{ 
+        zoomControl: false,
         fullscreenControl: true, 
         fullscreenControlOptions: {
           position: 'topright'
