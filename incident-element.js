@@ -127,9 +127,11 @@ class IncidentElement extends HTMLElement {
     // Prefer closed date if present, otherwise updated
     const closed = incident.closed ? new Date(incident.closed) : null;
     const updated = incident.updated ? new Date(incident.updated) : null;
+    const opened = incident.opened ? new Date(incident.opened) : null;
   
     if (closed && !isNaN(closed)) return closed;
     if (updated && !isNaN(updated)) return updated;
+    if (opened && !isNaN(opened)) return opened;
     return new Date(0);
   }
 
