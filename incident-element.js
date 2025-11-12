@@ -269,20 +269,24 @@ class IncidentElement extends HTMLElement {
     let closedValue = i.closed;
 
     if (!isExpanded) {
-      return `
-        <div class="incident-entry">
-          <div class="incident-title">
-            <a href="#" class="toggle-link" data-id="${i.id}">
-              ${capitalize(i.incident)}
-            </a>
-          </div>
-          <div class="incident-description">${i.description || "—"}</div>
-          <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
-           &nbsp; |&nbsp;
-          <a href="${editUrl}" class="edit-link">Edit</a>
-          </div>
+     const editLink = window.isTestTeamMember
+      ? `<a href="${editUrl}" class="edit-link">Edit</a>`
+      : "";
+
+    return `
+      <div class="incident-entry">
+        <div class="incident-title">
+          <a href="#" class="toggle-link" data-id="${i.id}">
+            ${capitalize(i.incident)}
+          </a>
         </div>
-      `;
+        <div class="incident-description">${i.description || "—"}</div>
+        <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
+        &nbsp; |&nbsp;
+        ${editLink}
+        </div>
+      </div>
+    `;
     }
 
     const fields = [
@@ -327,6 +331,12 @@ class IncidentElement extends HTMLElement {
       ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
     `;
 
+    const editLink = window.isTestTeamMember
+  ? `<a href="${editUrl}" class="edit-link">Edit</a>`
+  : "";
+
+
+
     return `
       <div class="incident-entry">
         <div class="incident-title">
@@ -344,10 +354,10 @@ class IncidentElement extends HTMLElement {
         <div id="comments-${i.id}" class="incident-comments">Loading comments...</div>
         <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
         &nbsp; |&nbsp;
-        <a href="${editUrl}" class="edit-link">Edit</a>
+        ${editLink}
         </div>
       </div>
-    `;
+      `;
   }
 }
 
