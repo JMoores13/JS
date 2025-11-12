@@ -138,7 +138,7 @@ dmsToDecimal(dms) {
         
         switch (statusKey) {
           case "active":
-            color = "blue";
+            color = "green";
             break;
           case "inprogress":
             color = "orange";
@@ -147,7 +147,7 @@ dmsToDecimal(dms) {
             color = "red";
             break;
           case "open":
-            color = "green";
+            color = "blue";
             break;
         }
 
