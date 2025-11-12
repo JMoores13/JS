@@ -20,7 +20,7 @@ class IncidentElement extends HTMLElement {
       .comment-body {
         margin-top: 0.25em;
         padding-left: 1em;
-        font-size: 0.87em
+        font-size: 0.95em
       }
       .incident-title {
         font-size: 1.1em;
