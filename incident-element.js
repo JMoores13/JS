@@ -20,6 +20,7 @@ class IncidentElement extends HTMLElement {
       .comment-body {
         margin-top: 0.25em;
         padding-left: 1em;
+        font-size: 0.8em
       }
       .incident-title {
         font-size: 1.1em;
@@ -161,7 +162,6 @@ class IncidentElement extends HTMLElement {
     filteredItems.sort((a, b) => {
       const dateA = this.getSortDate(a);
       const dateB = this.getSortDate(b);
-      console.log("Sorting", a.id, dateA, b.id, dateB);
       return dateB - dateA;
     });
 
