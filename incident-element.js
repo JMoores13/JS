@@ -123,7 +123,7 @@ class IncidentElement extends HTMLElement {
     }
   }
 
-  function getSortDate(incident) {
+  getSortDate(incident) {
     // Prefer closed date if present, otherwise updated
     const closed = incident.closed ? new Date(incident.closed) : null;
     const updated = incident.updated ? new Date(incident.updated) : null;
@@ -151,8 +151,8 @@ class IncidentElement extends HTMLElement {
 
     // Sort descending by closed/updated
     filteredItems.sort((a, b) => {
-      const dateA = getSortDate(a);
-      const dateB = getSortDate(b);
+      const dateA = this.getSortDate(a);
+      const dateB = this.getSortDate(b);
       return dateB - dateA;
     });
 
