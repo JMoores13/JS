@@ -20,10 +20,11 @@ class IncidentElement extends HTMLElement {
       .comment-body {
         margin-top: 0.25em;
         padding-left: 1em;
-        font-size: 1.1em
+        font-size: 1em
       }
       .comment-title {
-        font-size: 1.2em
+        font-size: 1em
+        font-weight: bold
       }
       .incident-title {
         font-size: 1.1em;
@@ -96,7 +97,7 @@ class IncidentElement extends HTMLElement {
         border-top: 1px solid #ccc;
       }
       .comment-header{
-        font-size: 1.25em;
+        font-size: 1em;
         font-weight: bold;
         margin-bottom: 0.5em;
       }
