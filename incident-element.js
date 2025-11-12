@@ -123,16 +123,18 @@ class IncidentElement extends HTMLElement {
     }
   }
 
-  getSortDate(incident) {
-    // Prefer closed date if present, otherwise updated
-    const closed = incident.closed ? new Date(incident.closed) : null;
-    const updated = incident.updated ? new Date(incident.updated) : null;
-    const opened = incident.opened ? new Date(incident.opened) : null;
+  parseDate(val) {
+    if (!val) return null;
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  }
   
-    if (closed && !isNaN(closed)) return closed;
-    if (updated && !isNaN(updated)) return updated;
-    if (opened && !isNaN(opened)) return opened;
-    return new Date(0);
+  getSortDate(incident) {
+    const closed = this.parseDate(incident.closed);
+    const updated = this.parseDate(incident.updated);
+    const opened = this.parseDate(incident.opened);
+  
+    return closed || updated || opened || new Date(0);
   }
 
   renderList() {
@@ -151,10 +153,11 @@ class IncidentElement extends HTMLElement {
       );
     });
 
-    // Sort descending by closed/updated
+    // Sort descending by closed/updated or opened
     filteredItems.sort((a, b) => {
       const dateA = this.getSortDate(a);
       const dateB = this.getSortDate(b);
+      console.log("Sorting", a.id, dateA, b.id, dateB);
       return dateB - dateA;
     });
 
