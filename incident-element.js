@@ -99,6 +99,7 @@ class IncidentElement extends HTMLElement {
         font-size: 1em;
         font-weight: bold;
         margin-bottom: 0.5em;
+        text-decoration: underline;
       }
       </style>
       <h2 class="incident-title-header">Incident List</h2>
