@@ -123,6 +123,16 @@ class IncidentElement extends HTMLElement {
     }
   }
 
+  function getSortDate(incident) {
+    // Prefer closed date if present, otherwise updated
+    const closed = incident.closed ? new Date(incident.closed) : null;
+    const updated = incident.updated ? new Date(incident.updated) : null;
+  
+    if (closed && !isNaN(closed)) return closed;
+    if (updated && !isNaN(updated)) return updated;
+    return new Date(0);
+  }
+
   renderList() {
     const start = this.currentPage * this.pageSize;
     const end = start + this.pageSize;
@@ -137,6 +147,13 @@ class IncidentElement extends HTMLElement {
         i.statusOfIncident?.key?.toLowerCase().includes(q) ||
         i.creator?.name?.toLowerCase().includes(q)
       );
+    });
+
+    // Sort descending by closed/updated
+    filteredItems.sort((a, b) => {
+      const dateA = getSortDate(a);
+      const dateB = getSortDate(b);
+      return dateB - dateA;
     });
 
     const totalPages = Math.ceil(filteredItems.length / this.pageSize);
