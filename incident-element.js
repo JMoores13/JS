@@ -251,17 +251,9 @@ class IncidentElement extends HTMLElement {
         return val;
       }
     };
-
-    // Derive updated/closed values based on status
+    
     let updatedValue = i.updated;
     let closedValue = i.closed;
-    const statusKey = i.statusOfIncident?.key?.toLowerCase();
-
-    if (statusKey === "completed") {
-      closedValue = i.modifiedDate;
-    } else if (["open", "in progress", "inactive"].includes(statusKey)) {
-      updatedValue = i.modifiedDate;
-    }
 
     if (!isExpanded) {
       return `
