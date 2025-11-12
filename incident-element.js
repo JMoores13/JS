@@ -201,9 +201,9 @@ class IncidentElement extends HTMLElement {
             ? `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`
             : "";
           return `<div class="comment">
-                    <em>${c.creator?.name || "Anon"}</em>
-                    ${formatted ? ` (${formatted})` : ""}: 
-                    ${c.comment}
+                    <div><em>${c.creator?.name || "Anon"}</em>
+                    ${formatted ? ` (${formatted})` : ""}: </div>
+                   <div> ${c.comment}</div>
                   </div>`;
         }).join("")
           : "<div>No comments yet.</div>";
