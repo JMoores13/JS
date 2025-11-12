@@ -203,7 +203,7 @@ class IncidentElement extends HTMLElement {
           return `<div class="comment">
                     <div><em>${c.creator?.name || "Anon"}</em>
                     ${formatted ? ` (${formatted})` : ""}: </div>
-                   <div margin-top: 0.25em; > ${c.comment}</div>
+                   <div margin-top: 0.25em; > "    "${c.comment}</div>
                   </div>`;
         }).join("")
           : "<div>No comments yet.</div>";
