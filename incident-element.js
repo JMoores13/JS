@@ -23,7 +23,7 @@ class IncidentElement extends HTMLElement {
         font-size: 1.1em
       }
       .comment-title {
-        font-size: 1.3em
+        font-size: 1.2em
       }
       .incident-title {
         font-size: 1.1em;
