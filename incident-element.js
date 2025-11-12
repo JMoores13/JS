@@ -17,6 +17,10 @@ class IncidentElement extends HTMLElement {
         padding: 0.75em 0;
         border-bottom: 1px solid #ccc;
       }
+      .comment-body {
+        margin-top: 0.25em;
+        padding-left: 1em;
+      }
       .incident-title {
         font-size: 1.1em;
         font-weight: bold;
@@ -203,7 +207,7 @@ class IncidentElement extends HTMLElement {
           return `<div class="comment">
                     <div><em>${c.creator?.name || "Anon"}</em>
                     ${formatted ? ` (${formatted})` : ""}: </div>
-                   <div margin-top: 0.25em; > "    "${c.comment}</div>
+                   <div class="comment-body">${c.comment}</div>
                   </div>`;
         }).join("")
           : "<div>No comments yet.</div>";
