@@ -20,7 +20,10 @@ class IncidentElement extends HTMLElement {
       .comment-body {
         margin-top: 0.25em;
         padding-left: 1em;
-        font-size: 0.95em
+        font-size: 1.1em
+      }
+      .comment-title {
+        font-size: 1.3em
       }
       .incident-title {
         font-size: 1.1em;
@@ -205,7 +208,7 @@ class IncidentElement extends HTMLElement {
             ? `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`
             : "";
           return `<div class="comment">
-                    <div><em>${c.creator?.name || "Anon"}</em>
+                    <div class="comment-title"><em>${c.creator?.name || "Anon"}</em>
                     ${formatted ? ` (${formatted})` : ""}: </div>
                    <div class="comment-body">${c.comment}</div>
                   </div>`;
