@@ -135,61 +135,60 @@ class IncidentElement extends HTMLElement {
       this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
     }
   }
-  async probeEditPage(idNum, editUrl) {
-    if (this.editPageProbeCache.has(idNum)) {
-      return this.editPageProbeCache.get(idNum);
-    }
+  async probeEditPermission(idNum, apiUrl, editUrl) {
 
-    try {
-      const headRes = await fetch(editUrl, {
-        method: "HEAD",
-        credentials: "same-origin",
-        redirect: "manual"
-      });
-
-      // 200 OK -> allowed
-      if (headRes.status === 200) {
-        this.editPageProbeCache.set(idNum, true);
-        return true;
+      if (this.editPageProbeCache.has(idNum)) {
+        return this.editPageProbeCache.get(idNum);
       }
 
-      // 302/303 redirect to login -> not allowed
-      if (headRes.status >= 300 && headRes.status < 400) {
-        this.editPageProbeCache.set(idNum, false);
-        return false;
-      }
-
-      // 401/403 -> not allowed
-      if (headRes.status === 401 || headRes.status === 403) {
-        this.editPageProbeCache.set(idNum, false);
-        return false;
-      }
-
-      // If HEAD returns 405 Method Not Allowed, try GET
-      if (headRes.status === 405) {
-        const getRes = await fetch(editUrl, {
-          method: "GET",
+      try {
+        const optionsRes = await fetch(apiUrl, {
+          method: "OPTIONS",
           credentials: "same-origin",
           redirect: "manual"
         });
 
-        if (getRes.status === 200) {
+        if (optionsRes.ok) {
+          const allow = optionsRes.headers.get("allow") || "";
+          const allowsPut = /\bPUT\b/i.test(allow);
+          if (allowsPut) {
+            this.editPageProbeCache.set(idNum, true);
+            return true;
+          }
+        }
+
+        const getRes = await fetch(apiUrl, {
+          method: "GET",
+          credentials: "same-origin",
+          headers: { "Accept": "application/json" },
+          redirect: "manual"
+        });
+
+        if (getRes.ok) {
+          const entry = await getRes.json();
+          const canEdit = !!(entry.actions && entry.actions.update);
+          this.editPageProbeCache.set(idNum, canEdit);
+          return canEdit;
+        }
+
+        const headRes = await fetch(editUrl, {
+          method: "HEAD",
+          credentials: "same-origin",
+          redirect: "manual"
+        });
+
+        if (headRes.status === 200) {
           this.editPageProbeCache.set(idNum, true);
           return true;
         }
+
+        this.editPageProbeCache.set(idNum, false);
+        return false;
+      } catch (e) {
         this.editPageProbeCache.set(idNum, false);
         return false;
       }
-
-      // Anything else -> treat as no access for safety
-      this.editPageProbeCache.set(idNum, false);
-      return false;
-    } catch (e) {
-      // network error -> assume no access
-      this.editPageProbeCache.set(idNum, false);
-      return false;
     }
-  }
 
   parseDate(val) {
     if (!val) return null;
@@ -254,104 +253,57 @@ class IncidentElement extends HTMLElement {
     this.querySelector("#incident-list").innerHTML = listHTML;
 
     visibleItems.forEach((item) => {
-    const idNum = Number(item.id);
-    const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${idNum}`;
+      const idNum = Number(item.id);
+      const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${idNum}`;
+      const apiUrl = `/o/c/incidents/${idNum}`;
 
-    if (this.editAccessCache.has(idNum) && this.editAccessCache.get(idNum) === true) return;
-    if (this.editPageProbeCache.has(idNum)) {
-      if (this.editPageProbeCache.get(idNum)) {
-        this.editAccessCache.set(idNum, true);
-        this.renderList();
-      }
-      return;
-    }
+      // already known true -> nothing to do
+      if (this.editAccessCache.get(idNum) === true) return;
 
-    fetch(`/o/c/incidents/${idNum}`, {
-      headers: { "Accept": "application/json" },
-      credentials: "same-origin"
-    })
-      .then(res => {
-        if (!res.ok) {
-          return null;
-        }
-        return res.json();
-      })
-      .then(async (entry) => {
-        if (entry) {
-          const canEdit = !!(entry.actions && entry.actions.update);
-          this.editAccessCache.set(idNum, canEdit);
-          if (canEdit) {
-            this.renderList();
-            return;
-          }
-        }
-
-        const probe = await this.probeEditPage(idNum, editUrl);
-        if (probe) {
+      // cached probe result -> apply and re-render if allowed
+      if (this.editPageProbeCache.has(idNum)) {
+        if (this.editPageProbeCache.get(idNum)) {
           this.editAccessCache.set(idNum, true);
           this.renderList();
         } else {
           this.editAccessCache.set(idNum, false);
         }
-      })
-      .catch(async () => {
-        const probe = await this.probeEditPage(idNum, editUrl);
-        this.editAccessCache.set(idNum, !!probe);
-        if (probe) this.renderList();
-      });
-  });
-
-    // After rendering, hydrate comments for expanded incidents
-    this.expandedIds.forEach((id) => {
-      const incident = this.allItems.find(i => String(i.id) === id);
-      if (!incident) return;
-    
-      const container = this.querySelector(`#comments-${id}`);
-      if (container) {
-        const comments = incident.commentOnIncident || [];
-        container.innerHTML = comments.length
-          ? comments.map(c => {
-          const date = c.dateFiled ? new Date(c.dateFiled) : null;
-          const formatted = date
-            ? `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`
-            : "";
-          return `<div class="comment">
-                    <div class="comment-title"><em>${c.creator?.name || "Anon"}</em>
-                    ${formatted ? ` (${formatted})` : ""}: </div>
-                   <div class="comment-body">${c.comment}</div>
-                  </div>`;
-        }).join("")
-          : "<div>No comments yet.</div>";
+        return;
       }
-    });
 
-    this.querySelectorAll(".toggle-link").forEach((el) => {
-      el.addEventListener("click", (e) => {
-        e.preventDefault();
-        const id = el.dataset.id;
-        if (this.expandedIds.has(id)) {
-          this.expandedIds.delete(id);
-        } else {
-          this.expandedIds.add(id);
+      // run the deterministic path
+      (async () => {
+        try {
+          // Try the single-entry JSON first
+          const res = await fetch(apiUrl, {
+            headers: { "Accept": "application/json" },
+            credentials: "same-origin"
+          });
+
+          if (res.ok) {
+            const entry = await res.json();
+            const canEdit = !!(entry.actions && entry.actions.update);
+            this.editAccessCache.set(idNum, canEdit);
+            if (canEdit) {
+              this.renderList();
+              return;
+            }
+            // if not allowed by JSON, fall through to probe
+          }
+
+          // Fallback: probe via OPTIONS/GET/HEAD
+          const probe = await this.probeEditPermission(idNum, apiUrl, editUrl);
+          this.editAccessCache.set(idNum, !!probe);
+          if (probe) this.renderList();
+        } catch (e) {
+          // network/error -> try probe as last resort
+          const probe = await this.probeEditPermission(idNum, apiUrl, editUrl);
+          this.editAccessCache.set(idNum, !!probe);
+          if (probe) this.renderList();
         }
-        this.renderList();
-      });
+      })();
     });
-
-    this.querySelectorAll(".page-number").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        this.currentPage = parseInt(btn.dataset.page, 10);
-        this.renderList();
-      });
-    });
-
-    this.querySelector("#page-size").addEventListener("change", (e) => {
-      this.pageSize = parseInt(e.target.value, 10);
-      this.currentPage = 0;
-      this.renderList();
-    });
-  }
-  
+      
   renderIncident(i) {
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
