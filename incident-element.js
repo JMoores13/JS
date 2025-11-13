@@ -136,11 +136,11 @@ class IncidentElement extends HTMLElement {
 
   async checkTeamMembership() {
     try {
-      const token = await getAccessToken();
+      const token = await this.getAccessToken();
       
       const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
         headers: { 'Accept': 'application/json' },
-        'Authorization': 'Bearer ' + accessToken
+        'Authorization': 'Bearer ' + token
       });
       
       const user = await res.json();
@@ -157,7 +157,7 @@ class IncidentElement extends HTMLElement {
       }
   }
 
-  async function getAccessToken() {
+  async getAccessToken() {
     const clientId = "id-a78321f6-25c0-8138-b226-c447c2713c";
     const clientSecret = "secret-c845d8f0-59b7-fcce-6816-bd0f833a582";
   
