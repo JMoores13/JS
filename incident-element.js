@@ -115,15 +115,14 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
-    this.checkTeamMembership().then(() => {
       this.loadData();
-    });
   }
 
   async loadData() {
     try {
       const res = await fetch("/o/c/incidents?nestedFields=commentOnIncident", {
-        headers: { "Accept": "application/json" }
+        headers: { "Accept": "application/json" },
+        credentials: "same-origin"
       });
       const data = await res.json();
       this.allItems = data.items || [];
@@ -131,25 +130,6 @@ class IncidentElement extends HTMLElement {
     } catch (e) {
       console.error("Error fetching incidents:", e);
       this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
-    }
-  }
-
-  async checkTeamMembership() {
-    try {
-      const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'same-origin'
-      });
-      const user = await res.json();
-      console.log('User account JSON:', JSON.stringify(user, null, 2));
-
-      const site = (user.siteBriefs || []).find(s => s.name === "Incident Reporting Tool");
-      const inTestRole = site?.roleBriefs?.some(r => r.name === "Test Team" || r.key === "TestTeam") || false;
-
-      window.isTestTeamMember = inTestRole;
-    } catch (e) {
-      console.error("Error checking site role membership", e);
-      window.isTestTeamMember = false;
     }
   }
 
@@ -270,11 +250,13 @@ class IncidentElement extends HTMLElement {
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
   
-    const canEdit = !!window.isTestTeamMember;
+    const canEdit = !!(i.actions && i.actions.update);
   
     const capitalize = (str) =>
-      typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
-  
+       typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+
+    const editChunk = canEdit ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>` : "";
+
     const formatDate = (val) => {
       if (!val) return "";
       try {
@@ -291,24 +273,23 @@ class IncidentElement extends HTMLElement {
     let updatedValue = i.updated;
     let closedValue = i.closed;
   
-    if (!isExpanded) {
-      const editLink = canEdit ? `<a href="${editUrl}" class="edit-link">Edit</a>` : "";
-      const separator = canEdit ? "&nbsp; | &nbsp;" : "";
-  
-      return `
-        <div class="incident-entry">
-          <div class="incident-title">
-            <a href="#" class="toggle-link" data-id="${i.id}">
-              ${capitalize(i.incident)}
-            </a>
+     if (!isExpanded) {
+        return `
+          <div class="incident-entry">
+            <div class="incident-title">
+              <a href="#" class="toggle-link" data-id="${i.id}">
+                ${capitalize(i.incident)}
+              </a>
+            </div>
+            <div class="incident-description">${i.description || "—"}</div>
+            <div>
+              <a href="#" class="toggle-link" data-id="${i.id}">Read more</a>${editChunk}
+            </div>
           </div>
-          <div class="incident-description">${i.description || "—"}</div>
-          <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
-           ${separator}${editLink}
-          </div>
-        </div>
-      `;
-    }
+        `;
+      }
+
+
   
     const fields = [
       { key: "type", label: "Type" },
@@ -370,8 +351,8 @@ class IncidentElement extends HTMLElement {
         <hr class="comments-separator"/>
         <div class="comment-header"> Updates: </div>
         <div id="comments-${i.id}" class="incident-comments">Loading comments...</div>
-        <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
-        ${separator}${editLink}
+        <div>
+          <a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>${editChunk}
         </div>
       </div>
     `;
