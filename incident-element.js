@@ -137,7 +137,8 @@ class IncidentElement extends HTMLElement {
   async checkTeamMembership() {
     try {
       const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
+        credentials: 'include'
       });
       const user = await res.json();
       console.log('User account JSON:', JSON.stringify(user, null, 2));
