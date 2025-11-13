@@ -138,36 +138,27 @@ class IncidentElement extends HTMLElement {
     try {
       const token = await this.getAccessToken();
 
-      // Get all teams for the site
-      const res = await fetch('/o/headless-admin-user/v1.0/sites/33836/site-teams', {
+      const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
         headers: {
           'Accept': 'application/json',
           'Authorization': 'Bearer ' + token
         }
       });
-      const { items: teams } = await res.json();
-      console.log('Site teams:', teams);
 
+      const user = await res.json();
+      console.log('User account JSON:', JSON.stringify(user, null, 2));
 
+      // Find the Incident Reporting Tool site
+      const site = (user.siteBriefs || []).find(s => s.name === "Incident Reporting Tool");
 
-      let inTestTeam = false;
-
-      for (const team of teams) {
-        if (team.name === "Test Team") {
-          const teamRes = await fetch(`/o/headless-admin-user/v1.0/site-teams/${team.id}/user-accounts`, {
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer ' + token
-            }
-          });
-          const { items: members } = await teamRes.json();
-          inTestTeam = members.some(u => u.id === 20124);
-        }
+      let inTestRole = false;
+      if (site && site.roleBriefs) {
+        inTestRole = site.roleBriefs.some(r => r.name === "Test Team" || r.key === "TestTeam");
       }
 
-      window.isTestTeamMember = inTestTeam;
+      window.isTestTeamMember = inTestRole;
     } catch (e) {
-      console.error("Error checking team membership", e);
+      console.error("Error checking site role membership", e);
       window.isTestTeamMember = false;
     }
   }
@@ -334,6 +325,7 @@ class IncidentElement extends HTMLElement {
   
     if (!isExpanded) {
       const editLink = canEdit ? `<a href="${editUrl}" class="edit-link">Edit</a>` : "";
+      const separator = canEdit ? "&nbsp; |&nbsp;" : "";
   
       return `
         <div class="incident-entry">
@@ -344,8 +336,7 @@ class IncidentElement extends HTMLElement {
           </div>
           <div class="incident-description">${i.description || "—"}</div>
           <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
-           &nbsp; |&nbsp;
-           ${editLink}
+           ${separator}${editLink}
           </div>
         </div>
       `;
@@ -394,6 +385,7 @@ class IncidentElement extends HTMLElement {
     `;
   
     const editLink = canEdit ? `<a href="${editUrl}" class="edit-link">Edit</a>` : "";
+    const separator = canEdit ? "&nbsp; |&nbsp;" : "";
   
     return `
       <div class="incident-entry">
@@ -411,8 +403,7 @@ class IncidentElement extends HTMLElement {
         <div class="comment-header"> Updates: </div>
         <div id="comments-${i.id}" class="incident-comments">Loading comments...</div>
         <div><a href="#" class="toggle-link" data-id="${i.id}">Collapse</a>
-        &nbsp; |&nbsp;
-        ${editLink}
+        ${separator}${editLink}
         </div>
       </div>
     `;
