@@ -146,8 +146,6 @@ class IncidentElement extends HTMLElement {
         }
       });
       const { items: teams } = await res.json();
-
-      const teams = await res.json();
       console.log('Site teams:', teams);
 
 
