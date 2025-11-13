@@ -139,8 +139,10 @@ class IncidentElement extends HTMLElement {
       const token = await this.getAccessToken();
       
       const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-        headers: { 'Accept': 'application/json' },
-        'Authorization': 'Bearer ' + token
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ' + token
+        }
       });
       
       const user = await res.json();
