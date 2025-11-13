@@ -217,6 +217,7 @@ class IncidentElement extends HTMLElement {
           if (!entry) {
             return;
           }
+          console.log("Hydrated entry", entry);
           const canEdit = !!(entry.actions && entry.actions.update);
           this.editAccessCache.set(idNum, canEdit);
 
