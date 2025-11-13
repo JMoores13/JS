@@ -136,25 +136,14 @@ class IncidentElement extends HTMLElement {
 
   async checkTeamMembership() {
     try {
-      const token = await this.getAccessToken();
-
       const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer ' + token
-        }
+        headers: { 'Accept': 'application/json' }
       });
-
       const user = await res.json();
       console.log('User account JSON:', JSON.stringify(user, null, 2));
 
-      // Find the Incident Reporting Tool site
       const site = (user.siteBriefs || []).find(s => s.name === "Incident Reporting Tool");
-
-      let inTestRole = false;
-      if (site && site.roleBriefs) {
-        inTestRole = site.roleBriefs.some(r => r.name === "Test Team" || r.key === "TestTeam");
-      }
+      const inTestRole = site?.roleBriefs?.some(r => r.name === "Test Team" || r.key === "TestTeam") || false;
 
       window.isTestTeamMember = inTestRole;
     } catch (e) {
@@ -162,24 +151,6 @@ class IncidentElement extends HTMLElement {
       window.isTestTeamMember = false;
     }
   }
-
-
-
-  async getAccessToken() {
-    const clientId = "id-a78321f6-25c0-8138-b226-c447c2713c";
-    const clientSecret = "secret-c845d8f0-59b7-fcce-6816-bd0f833a582";
-  
-    const res = await fetch("/o/oauth2/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: new URLSearchParams({
-        grant_type: "client_credentials",
-        client_id: clientId,
-        client_secret: clientSecret
-      })
-    });
   
     const data = await res.json();
     return data.access_token; 
@@ -325,7 +296,7 @@ class IncidentElement extends HTMLElement {
   
     if (!isExpanded) {
       const editLink = canEdit ? `<a href="${editUrl}" class="edit-link">Edit</a>` : "";
-      const separator = canEdit ? "&nbsp; |&nbsp;" : "";
+      const separator = canEdit ? "&nbsp; | &nbsp;" : "";
   
       return `
         <div class="incident-entry">
@@ -385,7 +356,7 @@ class IncidentElement extends HTMLElement {
     `;
   
     const editLink = canEdit ? `<a href="${editUrl}" class="edit-link">Edit</a>` : "";
-    const separator = canEdit ? "&nbsp; |&nbsp;" : "";
+    const separator = canEdit ? "&nbsp; | &nbsp;" : "";
   
     return `
       <div class="incident-entry">
