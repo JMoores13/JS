@@ -7,6 +7,8 @@ class IncidentElement extends HTMLElement {
     this.allItems = [];
     this.searchQuery = "";
     this.searchDebounceTimer = null;
+
+    this.editAccessCache = new Map();
   }
 
   connectedCallback() {
@@ -195,6 +197,43 @@ class IncidentElement extends HTMLElement {
 
     this.querySelector("#incident-list").innerHTML = listHTML;
 
+    visibleItems.forEach((item) => {
+      const idNum = Number(item.id);
+      if (this.editAccessCache.has(idNum)) return;
+
+      // fetch single entry to read actions.update deterministically
+      fetch(`/o/c/incidents/${idNum}`, {
+        headers: { "Accept": "application/json" },
+        credentials: "same-origin"
+      })
+        .then(res => {
+          if (!res.ok) {
+            this.editAccessCache.set(idNum, false);
+            return null;
+          }
+          return res.json();
+        })
+        .then(entry => {
+          if (!entry) {
+            return;
+          }
+          const canEdit = !!(entry.actions && entry.actions.update);
+          this.editAccessCache.set(idNum, canEdit);
+
+          // Re-render only if the current page still includes this item
+          const stillVisible = this.allItems
+            .slice(this.currentPage * this.pageSize, this.currentPage * this.pageSize + this.pageSize)
+            .some(i => Number(i.id) === idNum);
+          if (stillVisible) {
+            this.renderList();
+          }
+        })
+        .catch(() => {
+          // network or other error → treat as no edit
+          this.editAccessCache.set(idNum, false);
+        });
+    });
+
     // After rendering, hydrate comments for expanded incidents
     this.expandedIds.forEach((id) => {
       const incident = this.allItems.find(i => String(i.id) === id);
@@ -250,12 +289,19 @@ class IncidentElement extends HTMLElement {
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
   
-    const canEdit = !!(i.actions && i.actions.update);
+   
+    const idNum = Number(i.id);
+    const canEdit = this.editAccessCache.has(idNum)
+      ? this.editAccessCache.get(idNum)
+      : false;
+
+    const editChunk = canEdit
+      ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
+      : "";
   
     const capitalize = (str) =>
        typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
-    const editChunk = canEdit ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>` : "";
 
     const formatDate = (val) => {
       if (!val) return "";
