@@ -247,8 +247,6 @@ class IncidentElement extends HTMLElement {
   renderIncident(i) {
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
-
-    window.isTestTeamMember = false;
   
     const canEdit = !!window.isTestTeamMember;
   
