@@ -146,18 +146,32 @@ class IncidentElement extends HTMLElement {
       });
       
       const user = await res.json();
+
       console.log('User account JSON:', JSON.stringify(user, null, 2));
 
-      const inTestTeam =
-          (user.userGroupBriefs || []).some(g => g.name === "Test Team") ||
-          (user.roleBriefs || []).some(r => r.name === "Test Team");
-    
-        window.isTestTeamMember = inTestTeam;
-      } catch (e) {
-        console.error("Error checking team membership", e);
-        window.isTestTeamMember = false;
+      const siteId = user.siteBriefs?.[0]?.id; // Incident Reporting Tool site
+      let inTestTeam = false;
+
+      if (siteId) {
+        const teamRes = await fetch(`/o/headless-admin-user/v1.0/sites/${siteId}/user-accounts/${user.id}`, {
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ' + token
+          }
+        });
+        const siteMembership = await teamRes.json();
+
+        inTestTeam = (siteMembership.teamBriefs || []).some(t => t.name === "Test Team");
       }
+
+      window.isTestTeamMember = inTestTeam;
+    } catch (e) {
+      console.error("Error checking team membership", e);
+      window.isTestTeamMember = false;
+    }
   }
+
+
 
   async getAccessToken() {
     const clientId = "id-a78321f6-25c0-8138-b226-c447c2713c";
