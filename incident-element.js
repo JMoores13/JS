@@ -136,22 +136,45 @@ class IncidentElement extends HTMLElement {
 
   async checkTeamMembership() {
     try {
+      const token = await getAccessToken();
+      
       const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
         headers: { 'Accept': 'application/json' },
         'Authorization': 'Bearer ' + accessToken
       });
+      
       const user = await res.json();
       console.log('User account JSON:', JSON.stringify(user, null, 2));
 
-      const inTestTeam = (user.userGroupBriefs || []).some(
-        g => g.name === 'Test Team'
-      );
+      const inTestTeam =
+          (user.userGroupBriefs || []).some(g => g.name === "Test Team") ||
+          (user.roleBriefs || []).some(r => r.name === "Test Team");
+    
+        window.isTestTeamMember = inTestTeam;
+      } catch (e) {
+        console.error("Error checking team membership", e);
+        window.isTestTeamMember = false;
+      }
+  }
+
+  async function getAccessToken() {
+    const clientId = "id-a78321f6-25c0-8138-b226-c447c2713c";
+    const clientSecret = "secret-c845d8f0-59b7-fcce-6816-bd0f833a582";
   
-      window.isTestTeamMember = inTestTeam;
-    } catch (e) {
-      console.error('Error checking team membership', e);
-      window.isTestTeamMember = false;
-    }
+    const res = await fetch("/o/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: clientId,
+        client_secret: clientSecret
+      })
+    });
+  
+    const data = await res.json();
+    return data.access_token; 
   }
 
   parseDate(val) {
