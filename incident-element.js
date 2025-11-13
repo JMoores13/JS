@@ -244,14 +244,15 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
   }
-
   renderIncident(i) {
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
-
+  
+    const canEdit = !!window.isTestTeamMember;
+  
     const capitalize = (str) =>
       typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
-
+  
     const formatDate = (val) => {
       if (!val) return "";
       try {
@@ -264,31 +265,29 @@ class IncidentElement extends HTMLElement {
         return val;
       }
     };
-    
+  
     let updatedValue = i.updated;
     let closedValue = i.closed;
-
+  
     if (!isExpanded) {
-     const editLink = window.isTestTeamMember
-      ? `<a href="${editUrl}" class="edit-link">Edit</a>`
-      : "";
-
-    return `
-      <div class="incident-entry">
-        <div class="incident-title">
-          <a href="#" class="toggle-link" data-id="${i.id}">
-            ${capitalize(i.incident)}
-          </a>
+      const editLink = canEdit ? `<a href="${editUrl}" class="edit-link">Edit</a>` : "";
+  
+      return `
+        <div class="incident-entry">
+          <div class="incident-title">
+            <a href="#" class="toggle-link" data-id="${i.id}">
+              ${capitalize(i.incident)}
+            </a>
+          </div>
+          <div class="incident-description">${i.description || "—"}</div>
+          <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
+           &nbsp; |&nbsp;
+           ${editLink}
+          </div>
         </div>
-        <div class="incident-description">${i.description || "—"}</div>
-        <div><a href="#" class="toggle-link" data-id="${i.id}">Read more</a>
-        &nbsp; |&nbsp;
-        ${editLink}
-        </div>
-      </div>
-    `;
+      `;
     }
-
+  
     const fields = [
       { key: "type", label: "Type" },
       { key: "classification", label: "Classification" },
@@ -302,41 +301,37 @@ class IncidentElement extends HTMLElement {
       { key: "statusOfIncident", label: "Status" },
       { key: "creator", label: "Author" }
     ];
-
+  
     const rows = fields
       .map(({ key, label }) => {
         let value = i[key];
-
+  
         if (["opened", "modifiedDate"].includes(key)) {
           value = formatDate(value);
         }
-
+  
         if (key === "creator" && typeof value === "object") {
           value = value.name || value.givenName || value.alternateName || "Unknown";
         }
-
+  
         if (key === "statusOfIncident") {
           const status = i.statusOfIncident;
           if (!status || (!status.name && !status.key)) return "";
           value = status.name || status.key;
         }
-
+  
         if (!value) return "";
         return `<div><strong>${label}:</strong> ${value}</div>`;
       })
       .join("");
-
+  
     const extraRows = `
       ${updatedValue ? `<div><strong>Updated:</strong> ${formatDate(updatedValue)}</div>` : ""}
       ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
     `;
-
-    const editLink = window.isTestTeamMember
-  ? `<a href="${editUrl}" class="edit-link">Edit</a>`
-  : "";
-
-
-
+  
+    const editLink = canEdit ? `<a href="${editUrl}" class="edit-link">Edit</a>` : "";
+  
     return `
       <div class="incident-entry">
         <div class="incident-title">
@@ -357,7 +352,7 @@ class IncidentElement extends HTMLElement {
         ${editLink}
         </div>
       </div>
-      `;
+    `;
   }
 }
 
