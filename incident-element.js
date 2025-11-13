@@ -151,10 +151,6 @@ class IncidentElement extends HTMLElement {
       window.isTestTeamMember = false;
     }
   }
-  
-    const data = await res.json();
-    return data.access_token; 
-  }
 
   parseDate(val) {
     if (!val) return null;
