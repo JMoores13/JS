@@ -9,7 +9,7 @@ class IncidentElement extends HTMLElement {
     this.searchDebounceTimer = null;
 
     this.editAccessCache = new Map();
-    this.editPageProbeCache = new Map(); 
+    this.editPageProbeCache = new Map();
   }
 
   connectedCallback() {
@@ -118,7 +118,7 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
-      this.loadData();
+    this.loadData();
   }
 
   async loadData() {
@@ -135,72 +135,75 @@ class IncidentElement extends HTMLElement {
       this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
     }
   }
+
   async probeEditPermission(idNum, apiUrl, editUrl) {
+    if (this.editPageProbeCache.has(idNum)) {
+      return this.editPageProbeCache.get(idNum);
+    }
 
-      if (this.editPageProbeCache.has(idNum)) {
-        return this.editPageProbeCache.get(idNum);
-      }
+    try {
+      // OPTIONS on REST resource 
+      const optionsRes = await fetch(apiUrl, {
+        method: "OPTIONS",
+        credentials: "same-origin",
+        redirect: "manual"
+      });
 
-      try {
-        const optionsRes = await fetch(apiUrl, {
-          method: "OPTIONS",
-          credentials: "same-origin",
-          redirect: "manual"
-        });
-
-        if (optionsRes.ok) {
-          const allow = optionsRes.headers.get("allow") || "";
-          const allowsPut = /\bPUT\b/i.test(allow);
-          if (allowsPut) {
-            this.editPageProbeCache.set(idNum, true);
-            return true;
-          }
-        }
-
-        const getRes = await fetch(apiUrl, {
-          method: "GET",
-          credentials: "same-origin",
-          headers: { "Accept": "application/json" },
-          redirect: "manual"
-        });
-
-        if (getRes.ok) {
-          const entry = await getRes.json();
-          const canEdit = !!(entry.actions && entry.actions.update);
-          this.editPageProbeCache.set(idNum, canEdit);
-          return canEdit;
-        }
-
-        const headRes = await fetch(editUrl, {
-          method: "HEAD",
-          credentials: "same-origin",
-          redirect: "manual"
-        });
-
-        if (headRes.status === 200) {
+      if (optionsRes.ok) {
+        const allow = optionsRes.headers.get("allow") || "";
+        const allowsPut = /\bPUT\b/i.test(allow);
+        if (allowsPut) {
           this.editPageProbeCache.set(idNum, true);
           return true;
         }
-
-        this.editPageProbeCache.set(idNum, false);
-        return false;
-      } catch (e) {
-        this.editPageProbeCache.set(idNum, false);
-        return false;
       }
+
+      //  GET single entry to inspect actions.update
+      const getRes = await fetch(apiUrl, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" },
+        redirect: "manual"
+      });
+
+      if (getRes.ok) {
+        const entry = await getRes.json();
+        const canEdit = !!(entry.actions && entry.actions.update);
+        this.editPageProbeCache.set(idNum, canEdit);
+        return canEdit;
+      }
+
+      //Fallback to probing edit page (least authoritative)
+      const headRes = await fetch(editUrl, {
+        method: "HEAD",
+        credentials: "same-origin",
+        redirect: "manual"
+      });
+
+      if (headRes.status === 200) {
+        this.editPageProbeCache.set(idNum, true);
+        return true;
+      }
+
+      this.editPageProbeCache.set(idNum, false);
+      return false;
+    } catch (e) {
+      this.editPageProbeCache.set(idNum, false);
+      return false;
     }
+  }
 
   parseDate(val) {
     if (!val) return null;
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d;
   }
-  
+
   getSortDate(incident) {
     const closed = this.parseDate(incident.closed);
     const updated = this.parseDate(incident.updated);
     const opened = this.parseDate(incident.opened);
-  
+
     return closed || updated || opened || new Date(0);
   }
 
@@ -257,10 +260,9 @@ class IncidentElement extends HTMLElement {
       const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${idNum}`;
       const apiUrl = `/o/c/incidents/${idNum}`;
 
-      // already known true -> nothing to do
       if (this.editAccessCache.get(idNum) === true) return;
 
-      // cached probe result -> apply and re-render if allowed
+      // cached probe result 
       if (this.editPageProbeCache.has(idNum)) {
         if (this.editPageProbeCache.get(idNum)) {
           this.editAccessCache.set(idNum, true);
@@ -274,7 +276,6 @@ class IncidentElement extends HTMLElement {
       // run the deterministic path
       (async () => {
         try {
-          // Try the single-entry JSON first
           const res = await fetch(apiUrl, {
             headers: { "Accept": "application/json" },
             credentials: "same-origin"
@@ -288,27 +289,78 @@ class IncidentElement extends HTMLElement {
               this.renderList();
               return;
             }
-            // if not allowed by JSON, fall through to probe
           }
 
-          // Fallback: probe via OPTIONS/GET/HEAD
           const probe = await this.probeEditPermission(idNum, apiUrl, editUrl);
           this.editAccessCache.set(idNum, !!probe);
           if (probe) this.renderList();
         } catch (e) {
-          // network/error -> try probe as last resort
+         
           const probe = await this.probeEditPermission(idNum, apiUrl, editUrl);
           this.editAccessCache.set(idNum, !!probe);
           if (probe) this.renderList();
         }
       })();
     });
-      
+
+    // After rendering, hydrate comments for expanded incidents
+    this.expandedIds.forEach((id) => {
+      const incident = this.allItems.find(i => String(i.id) === id);
+      if (!incident) return;
+
+      const container = this.querySelector(`#comments-${id}`);
+      if (container) {
+        const comments = incident.commentOnIncident || [];
+        container.innerHTML = comments.length
+          ? comments.map(c => {
+              const date = c.dateFiled ? new Date(c.dateFiled) : null;
+              const formatted = date
+                ? `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`
+                : "";
+              return `<div class="comment">
+                        <div class="comment-title"><em>${c.creator?.name || "Anon"}</em>
+                        ${formatted ? ` (${formatted})` : ""}: </div>
+                       <div class="comment-body">${c.comment}</div>
+                      </div>`;
+            }).join("")
+          : "<div>No comments yet.</div>";
+      }
+    });
+
+    this.querySelectorAll(".toggle-link").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        const id = el.dataset.id;
+        if (this.expandedIds.has(id)) {
+          this.expandedIds.delete(id);
+        } else {
+          this.expandedIds.add(id);
+        }
+        this.renderList();
+      });
+    });
+
+    this.querySelectorAll(".page-number").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this.currentPage = parseInt(btn.dataset.page, 10);
+        this.renderList();
+      });
+    });
+
+    const pageSizeEl = this.querySelector("#page-size");
+    if (pageSizeEl) {
+      pageSizeEl.addEventListener("change", (e) => {
+        this.pageSize = parseInt(e.target.value, 10);
+        this.currentPage = 0;
+        this.renderList();
+      });
+    }
+  }
+
   renderIncident(i) {
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
-  
-   
+
     const idNum = Number(i.id);
     const canEdit = this.editAccessCache.has(idNum)
       ? this.editAccessCache.get(idNum)
@@ -317,10 +369,9 @@ class IncidentElement extends HTMLElement {
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
       : "";
-  
-    const capitalize = (str) =>
-       typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
+    const capitalize = (str) =>
+      typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
     const formatDate = (val) => {
       if (!val) return "";
@@ -334,28 +385,26 @@ class IncidentElement extends HTMLElement {
         return val;
       }
     };
-  
+
     let updatedValue = i.updated;
     let closedValue = i.closed;
-  
-     if (!isExpanded) {
-        return `
-          <div class="incident-entry">
-            <div class="incident-title">
-              <a href="#" class="toggle-link" data-id="${i.id}">
-                ${capitalize(i.incident)}
-              </a>
-            </div>
-            <div class="incident-description">${i.description || "—"}</div>
-            <div>
-              <a href="#" class="toggle-link" data-id="${i.id}">Read more</a>${editChunk}
-            </div>
+
+    if (!isExpanded) {
+      return `
+        <div class="incident-entry">
+          <div class="incident-title">
+            <a href="#" class="toggle-link" data-id="${i.id}">
+              ${capitalize(i.incident)}
+            </a>
           </div>
-        `;
-      }
+          <div class="incident-description">${i.description || "—"}</div>
+          <div>
+            <a href="#" class="toggle-link" data-id="${i.id}">Read more</a>${editChunk}
+          </div>
+        </div>
+      `;
+    }
 
-
-  
     const fields = [
       { key: "type", label: "Type" },
       { key: "classification", label: "Classification" },
@@ -369,38 +418,35 @@ class IncidentElement extends HTMLElement {
       { key: "statusOfIncident", label: "Status" },
       { key: "creator", label: "Author" }
     ];
-  
+
     const rows = fields
       .map(({ key, label }) => {
         let value = i[key];
-  
+
         if (["opened", "modifiedDate"].includes(key)) {
           value = formatDate(value);
         }
-  
+
         if (key === "creator" && typeof value === "object") {
           value = value.name || value.givenName || value.alternateName || "Unknown";
         }
-  
+
         if (key === "statusOfIncident") {
           const status = i.statusOfIncident;
           if (!status || (!status.name && !status.key)) return "";
           value = status.name || status.key;
         }
-  
+
         if (!value) return "";
         return `<div><strong>${label}:</strong> ${value}</div>`;
       })
       .join("");
-  
+
     const extraRows = `
       ${updatedValue ? `<div><strong>Updated:</strong> ${formatDate(updatedValue)}</div>` : ""}
       ${closedValue ? `<div><strong>Closed:</strong> ${formatDate(closedValue)}</div>` : ""}
     `;
-  
-    const editLink = canEdit ? `<a href="${editUrl}" class="edit-link">Edit</a>` : "";
-    const separator = canEdit ? "&nbsp; | &nbsp;" : "";
-  
+
     return `
       <div class="incident-entry">
         <div class="incident-title">
@@ -425,4 +471,3 @@ class IncidentElement extends HTMLElement {
 }
 
 customElements.define("incident-element", IncidentElement);
-
