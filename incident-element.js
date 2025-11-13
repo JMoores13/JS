@@ -217,7 +217,17 @@ class IncidentElement extends HTMLElement {
           if (!entry) {
             return;
           }
-          console.log("Hydrated entry", entry);
+          console.log("Hydrated entry:", {
+            id: entry.id,
+            actions: entry.actions,
+            groupId: entry.groupId,
+            scopeSiteGroupId: Liferay?.ThemeDisplay?.getScopeGroupId?.(),
+            companyGroupId: Liferay?.ThemeDisplay?.getCompanyGroupId?.(),
+            isSignedIn: Liferay?.ThemeDisplay?.isSignedIn?.(),
+            status: entry.status,
+            statusOfIncident: entry.statusOfIncident
+          });
+
           const canEdit = !!(entry.actions && entry.actions.update);
           this.editAccessCache.set(idNum, canEdit);
 
