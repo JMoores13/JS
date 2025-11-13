@@ -140,7 +140,7 @@ class IncidentElement extends HTMLElement {
         headers: { 'Accept': 'application/json' }
       });
       const user = await res.json();
-      console.log('User account:', user);
+      console.log('User account JSON:', JSON.stringify(user, null, 2));
 
       const inTestTeam = (user.userGroupBriefs || []).some(
         g => g.name === 'Test Team'
