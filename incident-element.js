@@ -115,7 +115,9 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
-    this.loadData();
+    this.checkTeamMembership().then(() => {
+      this.loadData();
+    });
   }
 
   async loadData() {
@@ -129,6 +131,25 @@ class IncidentElement extends HTMLElement {
     } catch (e) {
       console.error("Error fetching incidents:", e);
       this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
+    }
+  }
+
+  async checkTeamMembership() {
+    try {
+      const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+        headers: { 'Accept': 'application/json' }
+      });
+      const user = await res.json();
+      console.log('User account:', user);
+
+      const inTestTeam = (user.userGroupBriefs || []).some(
+        g => g.name === 'Test Team'
+      );
+  
+      window.isTestTeamMember = inTestTeam;
+    } catch (e) {
+      console.error('Error checking team membership', e);
+      window.isTestTeamMember = false;
     }
   }
 
@@ -244,6 +265,7 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
   }
+  
   renderIncident(i) {
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
