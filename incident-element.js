@@ -9,6 +9,7 @@ class IncidentElement extends HTMLElement {
     this.searchDebounceTimer = null;
 
     this.editAccessCache = new Map();
+    this.editPageProbeCache = new Map(); 
   }
 
   connectedCallback() {
@@ -134,6 +135,61 @@ class IncidentElement extends HTMLElement {
       this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
     }
   }
+  async probeEditPage(idNum, editUrl) {
+    if (this.editPageProbeCache.has(idNum)) {
+      return this.editPageProbeCache.get(idNum);
+    }
+
+    try {
+      const headRes = await fetch(editUrl, {
+        method: "HEAD",
+        credentials: "same-origin",
+        redirect: "manual"
+      });
+
+      // 200 OK -> allowed
+      if (headRes.status === 200) {
+        this.editPageProbeCache.set(idNum, true);
+        return true;
+      }
+
+      // 302/303 redirect to login -> not allowed
+      if (headRes.status >= 300 && headRes.status < 400) {
+        this.editPageProbeCache.set(idNum, false);
+        return false;
+      }
+
+      // 401/403 -> not allowed
+      if (headRes.status === 401 || headRes.status === 403) {
+        this.editPageProbeCache.set(idNum, false);
+        return false;
+      }
+
+      // If HEAD returns 405 Method Not Allowed, try GET
+      if (headRes.status === 405) {
+        const getRes = await fetch(editUrl, {
+          method: "GET",
+          credentials: "same-origin",
+          redirect: "manual"
+        });
+
+        if (getRes.status === 200) {
+          this.editPageProbeCache.set(idNum, true);
+          return true;
+        }
+        this.editPageProbeCache.set(idNum, false);
+        return false;
+      }
+
+      // Anything else -> treat as no access for safety
+      this.editPageProbeCache.set(idNum, false);
+      return false;
+    } catch (e) {
+      // network error -> assume no access
+      this.editPageProbeCache.set(idNum, false);
+      return false;
+    }
+  }
 
   parseDate(val) {
     if (!val) return null;
@@ -198,52 +254,52 @@ class IncidentElement extends HTMLElement {
     this.querySelector("#incident-list").innerHTML = listHTML;
 
     visibleItems.forEach((item) => {
-      const idNum = Number(item.id);
-      if (this.editAccessCache.has(idNum)) return;
+    const idNum = Number(item.id);
+    const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${idNum}`;
 
-      // fetch single entry to read actions.update deterministically
-      fetch(`/o/c/incidents/${idNum}`, {
-        headers: { "Accept": "application/json" },
-        credentials: "same-origin"
+    if (this.editAccessCache.has(idNum) && this.editAccessCache.get(idNum) === true) return;
+    if (this.editPageProbeCache.has(idNum)) {
+      if (this.editPageProbeCache.get(idNum)) {
+        this.editAccessCache.set(idNum, true);
+        this.renderList();
+      }
+      return;
+    }
+
+    fetch(`/o/c/incidents/${idNum}`, {
+      headers: { "Accept": "application/json" },
+      credentials: "same-origin"
+    })
+      .then(res => {
+        if (!res.ok) {
+          return null;
+        }
+        return res.json();
       })
-        .then(res => {
-          if (!res.ok) {
-            this.editAccessCache.set(idNum, false);
-            return null;
-          }
-          return res.json();
-        })
-        .then(entry => {
-          if (!entry) {
-            return;
-          }
-          console.log("Hydrated entry:", {
-            id: entry.id,
-            actions: entry.actions,
-            groupId: entry.groupId,
-            scopeSiteGroupId: Liferay?.ThemeDisplay?.getScopeGroupId?.(),
-            companyGroupId: Liferay?.ThemeDisplay?.getCompanyGroupId?.(),
-            isSignedIn: Liferay?.ThemeDisplay?.isSignedIn?.(),
-            status: entry.status,
-            statusOfIncident: entry.statusOfIncident
-          });
-
+      .then(async (entry) => {
+        if (entry) {
           const canEdit = !!(entry.actions && entry.actions.update);
           this.editAccessCache.set(idNum, canEdit);
-
-          // Re-render only if the current page still includes this item
-          const stillVisible = this.allItems
-            .slice(this.currentPage * this.pageSize, this.currentPage * this.pageSize + this.pageSize)
-            .some(i => Number(i.id) === idNum);
-          if (stillVisible) {
+          if (canEdit) {
             this.renderList();
+            return;
           }
-        })
-        .catch(() => {
-          // network or other error → treat as no edit
+        }
+
+        const probe = await this.probeEditPage(idNum, editUrl);
+        if (probe) {
+          this.editAccessCache.set(idNum, true);
+          this.renderList();
+        } else {
           this.editAccessCache.set(idNum, false);
-        });
-    });
+        }
+      })
+      .catch(async () => {
+        const probe = await this.probeEditPage(idNum, editUrl);
+        this.editAccessCache.set(idNum, !!probe);
+        if (probe) this.renderList();
+      });
+  });
 
     // After rendering, hydrate comments for expanded incidents
     this.expandedIds.forEach((id) => {
