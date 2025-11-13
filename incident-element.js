@@ -257,21 +257,38 @@ class IncidentElement extends HTMLElement {
 
     visibleItems.forEach((item) => {
       const idNum = Number(item.id);
-      const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${idNum}`;
       const apiUrl = `/o/c/incidents/${idNum}`;
 
-      if (this.editAccessCache.get(idNum) === true) return;
+      // If we already know result, do nothing
+      if (this.editAccessCache.has(idNum)) return;
 
-      // cached probe result 
-      if (this.editPageProbeCache.has(idNum)) {
-        if (this.editPageProbeCache.get(idNum)) {
-          this.editAccessCache.set(idNum, true);
-          this.renderList();
-        } else {
+      // Fetch the single-entry JSON and rely only on actions.update
+      (async () => {
+        try {
+          const res = await fetch(apiUrl, {
+            headers: { "Accept": "application/json" },
+            credentials: "same-origin"
+          });
+
+          if (!res.ok) {
+            // treat as no permission
+            this.editAccessCache.set(idNum, false);
+            return;
+          }
+
+          const entry = await res.json();
+          const canEdit = !!(entry.actions && entry.actions.update);
+          this.editAccessCache.set(idNum, canEdit);
+
+          if (canEdit) {
+            this.renderList();
+          }
+        } catch (e) {
+          // network or unexpected error = no edit
           this.editAccessCache.set(idNum, false);
         }
-        return;
-      }
+      })();
+    });
 
       // run the deterministic path
       (async () => {
