@@ -137,31 +137,29 @@ class IncidentElement extends HTMLElement {
   async checkTeamMembership() {
     try {
       const token = await this.getAccessToken();
-      
-      const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+
+      // Get all teams for the site
+      const res = await fetch('/o/headless-admin-user/v1.0/sites/33836/site-teams', {
         headers: {
           'Accept': 'application/json',
           'Authorization': 'Bearer ' + token
         }
       });
-      
-      const user = await res.json();
+      const { items: teams } = await res.json();
 
-      console.log('User account JSON:', JSON.stringify(user, null, 2));
-
-      const siteId = user.siteBriefs?.[0]?.id; // Incident Reporting Tool site
       let inTestTeam = false;
 
-      if (siteId) {
-        const teamRes = await fetch(`/o/headless-admin-user/v1.0/sites/${siteId}/user-accounts/${user.id}`, {
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': 'Bearer ' + token
-          }
-        });
-        const siteMembership = await teamRes.json();
-
-        inTestTeam = (siteMembership.teamBriefs || []).some(t => t.name === "Test Team");
+      for (const team of teams) {
+        if (team.name === "Test Team") {
+          const teamRes = await fetch(`/o/headless-admin-user/v1.0/site-teams/${team.id}/user-accounts`, {
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer ' + token
+            }
+          });
+          const { items: members } = await teamRes.json();
+          inTestTeam = members.some(u => u.id === 20124);
+        }
       }
 
       window.isTestTeamMember = inTestTeam;
