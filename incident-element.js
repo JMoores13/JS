@@ -228,7 +228,35 @@ class IncidentElement extends HTMLElement {
 
     visibleItems.forEach((item) => {
       const idNum = Number(item.id);
-      if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, false);
+
+      // skip if already known
+      if (this.editAccessCache.has(idNum)) return;
+
+      // mark pending to avoid duplicate fetches
+      this.editAccessCache.set(idNum, false);
+
+      (async () => {
+        try {
+          const res = await fetch(`/o/c/incidents/${idNum}`, {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin'
+          });
+
+          if (!res.ok) {
+            this.editAccessCache.set(idNum, false);
+            return;
+          }
+
+          const entry = await res.json();
+          const canEdit = !!(entry.actions && entry.actions.update);
+          this.editAccessCache.set(idNum, canEdit);
+
+          if (canEdit) this.renderList(); // re-render only when something changed to true
+        } catch (err) {
+          console.warn('incidentElement: per-item probe failed for', idNum, err);
+          this.editAccessCache.set(idNum, false);
+        }
+      })();
     });
 
     // After rendering, hydrate comments for expanded incidents
@@ -293,7 +321,7 @@ class IncidentElement extends HTMLElement {
 
     const serverCanEdit = this.editAccessCache.get(idNum) === true;
 
-    const canEdit = this.roleCanEdit || serverCanEdit;
+    const canEdit = this.editAccessCache.get(idNum) === true;
 
     console.log('incidentElement: renderIncident', idNum, 'roleCanEdit=', this.roleCanEdit, 'serverCanEdit=', serverCanEdit, 'final canEdit=', canEdit, 'editUrl=', editUrl);
 
