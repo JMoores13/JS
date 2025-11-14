@@ -342,7 +342,7 @@ class IncidentElement extends HTMLElement {
 
     if (!isExpanded) {
       return `
-        <div class="incident-entry">
+        <div class="incident-entry" data-id="${i.id}">
           <div class="incident-title">
             <a href="#" class="toggle-link" data-id="${i.id}">
               ${capitalize(i.incident)}
@@ -399,7 +399,7 @@ class IncidentElement extends HTMLElement {
     `;
 
     return `
-      <div class="incident-entry">
+      <div class="incident-entry" data-id="${i.id}">
         <div class="incident-title">
           <a href="#" class="toggle-link" data-id="${i.id}">
             ${capitalize(i.incident)}
