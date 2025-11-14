@@ -124,6 +124,7 @@ class IncidentElement extends HTMLElement {
       const editProbe = "/web/incident-reporting-tool/edit-incident?objectEntryId=0";
       this.roleCanEdit = await this.hasIncidentEditAccess(editProbe);
       this.roleProbeDone = true;
+      console.log('incidentElement: roleCanEdit=', this.roleCanEdit);
       await this.loadData();
     })();
   }
