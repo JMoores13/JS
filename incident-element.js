@@ -292,6 +292,8 @@ class IncidentElement extends HTMLElement {
 
     const canEdit = this.roleCanEdit || serverCanEdit;
 
+    console.log('incidentElement: renderIncident', idNum, 'roleCanEdit=', this.roleCanEdit, 'serverCanEdit=', serverCanEdit, 'final canEdit=', canEdit, 'editUrl=', editUrl);
+
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
       : "";
