@@ -203,35 +203,55 @@ class IncidentElement extends HTMLElement {
 
     this.querySelector("#incident-list").innerHTML = listHTML;
 
-    visibleItems.forEach((item) => {
+    const permissionProbes = visibleItems.map(async (item) => {
       const idNum = Number(item.id);
 
-      // skip if already known
-      if (this.editAccessCache.has(idNum)) return;
+      // If data is already in cache
+      if (this.editAccessCache.has(idNum)) {
+        return; 
+      }
+      
+      try {
+        const res = await fetch(`/o/c/incidents/${idNum}`, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin'
+        });
 
-
-      (async () => {
-        try {
-          const res = await fetch(`/o/c/incidents/${idNum}`, {
-            headers: { Accept: 'application/json' },
-            credentials: 'same-origin'
-          });
-
-          if (!res.ok) {
-            this.editAccessCache.set(idNum, false);
-            return;
-          }
-
-          const entry = await res.json();
-          const canEdit = !!(entry.actions && entry.actions.update);
-          this.editAccessCache.set(idNum, canEdit);
-
-          if (canEdit) this.renderList(); // re-render only when something changed to true
-        } catch (err) {
-          console.warn('incidentElement: per-item probe failed for', idNum, err);
-          this.editAccessCache.set(idNum, false);
+        if (!res.ok) {
+          this.editAccessCache.set(idNum, false); 
+          return;
         }
-      })();
+
+        const entry = await res.json();
+
+        const canEdit = !!(entry.actions && entry.actions.update); 
+ 
+        this.editAccessCache.set(idNum, canEdit);
+        
+      } catch (err) {
+        console.warn('incidentElement: per-item probe failed for', idNum, err);
+        this.editAccessCache.set(idNum, false); 
+      }
+    });
+
+    // Wait for all permission checks to finish
+    Promise.all(permissionProbes).then(() => {
+      
+      let needsReRender = false;
+      visibleItems.forEach(item => {
+         const idNum = Number(item.id);
+         const canEdit = this.editAccessCache.get(idNum) === true;
+         if (canEdit) {
+            // Check if the link is missing because of the initial render
+            if (!this.querySelector(`.incident-entry[data-id="${idNum}"] .edit-link`)) {
+              needsReRender = true;
+            }
+         }
+      });
+
+      if (needsReRender) {
+         this.renderList();
+      }
     });
 
     // After rendering, hydrate comments for expanded incidents
@@ -285,6 +305,7 @@ class IncidentElement extends HTMLElement {
         this.currentPage = 0;
         this.renderList();
       });
+
     }
   }
 
@@ -399,5 +420,4 @@ class IncidentElement extends HTMLElement {
     `;
   }
 }
-
 customElements.define("incident-element", IncidentElement);
