@@ -135,8 +135,10 @@ class IncidentElement extends HTMLElement {
         headers: { "Accept": "application/json" },
         credentials: "same-origin"
       });
+      
       const data = await res.json();
       this.allItems = data.items || [];
+      console.log('incidentElement: loaded items=', this.allItems.length, 'sampleId=', this.allItems[0]?.id);
       this.renderList();
     } catch (e) {
       console.error("Error fetching incidents:", e);
@@ -151,6 +153,7 @@ class IncidentElement extends HTMLElement {
         credentials: "same-origin",
         redirect: "manual"
       });
+      console.log('incidentElement: probe HEAD', editUrl, 'status=', res.status, 'location=', res.headers.get('location'));
       // If the page status is viewable set true
       if (res.status === 200) return true;
 
