@@ -212,7 +212,7 @@ class IncidentElement extends HTMLElement {
       }
       
       try {
-        const res = await fetch(`/o/c/incidents/${idNum}`, {
+        const res = await fetch(`/o/c/incidents/${idNum}?nestedFields=actions`, {
           headers: { Accept: 'application/json' },
        
           credentials: 'same-origin'
