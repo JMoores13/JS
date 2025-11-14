@@ -9,7 +9,9 @@ class IncidentElement extends HTMLElement {
     this.searchDebounceTimer = null;
 
     this.editAccessCache = new Map();
-    this.editPageProbeCache = new Map();
+
+    this.roleCanEdit = false;   
+    this.roleProbeDone = false; 
   }
 
   connectedCallback() {
@@ -118,7 +120,12 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
-    this.loadData();
+    (async () => {
+      const editProbe = "/web/incident-reporting-tool/edit-incident?objectEntryId=0";
+      this.roleCanEdit = await this.hasIncidentEditAccess(editProbe);
+      this.roleProbeDone = true;
+      await this.loadData();
+    })();
   }
 
   async loadData() {
@@ -136,59 +143,19 @@ class IncidentElement extends HTMLElement {
     }
   }
 
-  async probeEditPermission(idNum, apiUrl, editUrl) {
-    if (this.editPageProbeCache.has(idNum)) {
-      return this.editPageProbeCache.get(idNum);
-    }
-
-    try {
-      // OPTIONS on REST resource 
-      const optionsRes = await fetch(apiUrl, {
-        method: "OPTIONS",
-        credentials: "same-origin",
-        redirect: "manual"
-      });
-
-      if (optionsRes.ok) {
-        const allow = optionsRes.headers.get("allow") || "";
-        const allowsPut = /\bPUT\b/i.test(allow);
-        if (allowsPut) {
-          this.editPageProbeCache.set(idNum, true);
-          return true;
-        }
-      }
-
-      //  GET single entry to inspect actions.update
-      const getRes = await fetch(apiUrl, {
-        method: "GET",
-        credentials: "same-origin",
-        headers: { "Accept": "application/json" },
-        redirect: "manual"
-      });
-
-      if (getRes.ok) {
-        const entry = await getRes.json();
-        const canEdit = !!(entry.actions && entry.actions.update);
-        this.editPageProbeCache.set(idNum, canEdit);
-        return canEdit;
-      }
-
-      //Fallback to probing edit page (least authoritative)
-      const headRes = await fetch(editUrl, {
+  async hasIncidentEditAccess(editUrl){
+    try{
+      const res = await fetch(editUrl, {
         method: "HEAD",
         credentials: "same-origin",
         redirect: "manual"
       });
+      // If the page status is viewable set true
+      if (res.status === 200) return true;
 
-      if (headRes.status === 200) {
-        this.editPageProbeCache.set(idNum, true);
-        return true;
-      }
-
-      this.editPageProbeCache.set(idNum, false);
       return false;
-    } catch (e) {
-      this.editPageProbeCache.set(idNum, false);
+    }
+    catch{
       return false;
     }
   }
@@ -257,37 +224,7 @@ class IncidentElement extends HTMLElement {
 
     visibleItems.forEach((item) => {
       const idNum = Number(item.id);
-      const apiUrl = `/o/c/incidents/${idNum}`;
-
-      // If we already know result, do nothing
-      if (this.editAccessCache.has(idNum)) return;
-
-      // Fetch the single-entry JSON and rely only on actions.update
-      (async () => {
-        try {
-          const res = await fetch(apiUrl, {
-            headers: { "Accept": "application/json" },
-            credentials: "same-origin"
-          });
-
-          if (!res.ok) {
-            // treat as no permission
-            this.editAccessCache.set(idNum, false);
-            return;
-          }
-
-          const entry = await res.json();
-          const canEdit = !!(entry.actions && entry.actions.update);
-          this.editAccessCache.set(idNum, canEdit);
-
-          if (canEdit) {
-            this.renderList();
-          }
-        } catch (e) {
-          // network or unexpected error = no edit
-          this.editAccessCache.set(idNum, false);
-        }
-      })();
+      if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, false);
     });
 
     // After rendering, hydrate comments for expanded incidents
@@ -349,9 +286,10 @@ class IncidentElement extends HTMLElement {
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
 
     const idNum = Number(i.id);
-    const canEdit = this.editAccessCache.has(idNum)
-      ? this.editAccessCache.get(idNum)
-      : false;
+
+    const serverCanEdit = this.editAccessCache.get(idNum) === true;
+
+    const canEdit = this.roleCanEdit || serverCanEdit;
 
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
