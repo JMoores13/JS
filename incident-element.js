@@ -10,8 +10,6 @@ class IncidentElement extends HTMLElement {
 
     this.editAccessCache = new Map();
 
-    this.roleCanEdit = false;   
-    this.roleProbeDone = false; 
   }
 
   connectedCallback() {
@@ -120,11 +118,8 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
+    // Just call loadData directly
     (async () => {
-      const editProbe = "/web/incident-reporting-tool/edit-incident?objectEntryId=0";
-      this.roleCanEdit = await this.hasIncidentEditAccess(editProbe);
-      this.roleProbeDone = true;
-      console.log('incidentElement: roleCanEdit=', this.roleCanEdit);
       await this.loadData();
     })();
   }
@@ -143,24 +138,6 @@ class IncidentElement extends HTMLElement {
     } catch (e) {
       console.error("Error fetching incidents:", e);
       this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
-    }
-  }
-
-  async hasIncidentEditAccess(editUrl){
-    try{
-      const res = await fetch(editUrl, {
-        method: "HEAD",
-        credentials: "same-origin",
-        redirect: "manual"
-      });
-      console.log('incidentElement: probe HEAD', editUrl, 'status=', res.status, 'location=', res.headers.get('location'));
-      // If the page status is viewable set true
-      if (res.status === 200) return true;
-
-      return false;
-    }
-    catch{
-      return false;
     }
   }
 
@@ -319,11 +296,7 @@ class IncidentElement extends HTMLElement {
 
     const idNum = Number(i.id);
 
-    const serverCanEdit = this.editAccessCache.get(idNum) === true;
-
     const canEdit = this.editAccessCache.get(idNum) === true;
-
-    console.log('incidentElement: renderIncident', idNum, 'roleCanEdit=', this.roleCanEdit, 'serverCanEdit=', serverCanEdit, 'final canEdit=', canEdit, 'editUrl=', editUrl);
 
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
