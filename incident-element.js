@@ -290,36 +290,6 @@ class IncidentElement extends HTMLElement {
       })();
     });
 
-      // run the deterministic path
-      (async () => {
-        try {
-          const res = await fetch(apiUrl, {
-            headers: { "Accept": "application/json" },
-            credentials: "same-origin"
-          });
-
-          if (res.ok) {
-            const entry = await res.json();
-            const canEdit = !!(entry.actions && entry.actions.update);
-            this.editAccessCache.set(idNum, canEdit);
-            if (canEdit) {
-              this.renderList();
-              return;
-            }
-          }
-
-          const probe = await this.probeEditPermission(idNum, apiUrl, editUrl);
-          this.editAccessCache.set(idNum, !!probe);
-          if (probe) this.renderList();
-        } catch (e) {
-         
-          const probe = await this.probeEditPermission(idNum, apiUrl, editUrl);
-          this.editAccessCache.set(idNum, !!probe);
-          if (probe) this.renderList();
-        }
-      })();
-    
-
     // After rendering, hydrate comments for expanded incidents
     this.expandedIds.forEach((id) => {
       const incident = this.allItems.find(i => String(i.id) === id);
