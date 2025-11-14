@@ -209,8 +209,6 @@ class IncidentElement extends HTMLElement {
       // skip if already known
       if (this.editAccessCache.has(idNum)) return;
 
-      // mark pending to avoid duplicate fetches
-      this.editAccessCache.set(idNum, false);
 
       (async () => {
         try {
