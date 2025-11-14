@@ -318,7 +318,7 @@ class IncidentElement extends HTMLElement {
           if (probe) this.renderList();
         }
       })();
-    });
+    
 
     // After rendering, hydrate comments for expanded incidents
     this.expandedIds.forEach((id) => {
