@@ -214,11 +214,13 @@ class IncidentElement extends HTMLElement {
       try {
         const res = await fetch(`/o/c/incidents/${idNum}`, {
           headers: { Accept: 'application/json' },
+       
           credentials: 'same-origin'
         });
 
         if (!res.ok) {
           this.editAccessCache.set(idNum, false); 
+          console.warn('incidentElement: Permission fetch failed for', idNum, 'Status:', res.status); // <-- NEW LOG
           return;
         }
 
@@ -228,6 +230,9 @@ class IncidentElement extends HTMLElement {
  
         this.editAccessCache.set(idNum, canEdit);
         
+        console.log(`incidentElement: Final Permission for ${idNum} is ${canEdit}. API value: ${entry.actions?.update}`); 
+        
+    
       } catch (err) {
         console.warn('incidentElement: per-item probe failed for', idNum, err);
         this.editAccessCache.set(idNum, false); 
