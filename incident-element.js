@@ -12,6 +12,11 @@ class IncidentElement extends HTMLElement {
 
   }
 
+  _isActionsEditable(actions = {}) {
+  const editKeys = ['update','edit','modify','patch','put','UPDATE','EDIT','update_entry','edit_entry'];
+  return editKeys.some(k => Object.prototype.hasOwnProperty.call(actions, k));
+}
+
   connectedCallback() {
     console.log("incidentElement connected");
     this.innerHTML = `
@@ -206,11 +211,10 @@ class IncidentElement extends HTMLElement {
     const permissionProbes = visibleItems.map(async (item) => {
       const idNum = Number(item.id);
 
-      // If data is already in cache
-      if (this.editAccessCache.has(idNum)) {
-        return; 
-      }
-      
+      if (this.editAccessCache.has(idNum) && this.editAccessCache.get(idNum) !== null) return;
+
+      if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, null);
+
       try {
         const res = await fetch(`/o/c/incidents/${idNum}?fields=*`, {
           headers: { Accept: 'application/json' },
@@ -219,19 +223,22 @@ class IncidentElement extends HTMLElement {
         });
 
         if (!res.ok) {
-          this.editAccessCache.set(idNum, false); 
+          if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, null); 
           console.warn('incidentElement: Permission fetch failed for', idNum, 'Status:', res.status); // <-- NEW LOG
           return;
         }
 
         const entry = await res.json();
+        const actions = entry.actions || {};
 
-        const canEdit = !!(entry.actions && entry.actions.update); 
- 
-        this.editAccessCache.set(idNum, canEdit);
-        
-        console.log(`incidentElement: Final Permission for ${idNum} is ${canEdit}. API value: ${entry.actions?.update}`); 
-        
+        // check common edit-like action keys
+        const editKeys = ['update','edit','modify','patch','put','UPDATE','EDIT','update_entry','edit_entry'];
+
+        const canEdit = editKeys.some(k => Object.prototype.hasOwnProperty.call(actions, k));
+        this.editAccessCache.set(idNum, !!canEdit);
+
+        console.log(`incidentElement: PermissionProbe id=${idNum} -> canEdit=${canEdit} actions=${Object.keys(actions).join(',')}`);
+                
     
       } catch (err) {
         console.warn('incidentElement: per-item probe failed for', idNum, err);
@@ -320,7 +327,11 @@ class IncidentElement extends HTMLElement {
 
     const idNum = Number(i.id);
 
-    const canEdit = this.editAccessCache.get(idNum) === true;
+    const serverDeclared = !!(i.actions && Object.keys(i.actions).length && this._isActionsEditable(i.actions));
+    const cached = this.editAccessCache.has(idNum) ? this.editAccessCache.get(idNum) === true : null;
+    const canEdit = serverDeclared || (cached === true);
+
+
 
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
