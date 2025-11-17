@@ -12,11 +12,6 @@ class IncidentElement extends HTMLElement {
 
   }
 
-  _isActionsEditable(actions = {}) {
-  const editKeys = ['update','edit','modify','patch','put','UPDATE','EDIT','update_entry','edit_entry'];
-  return editKeys.some(k => Object.prototype.hasOwnProperty.call(actions, k));
-}
-
   connectedCallback() {
     console.log("incidentElement connected");
     this.innerHTML = `
@@ -123,8 +118,65 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
-    // Just call loadData directly
+    // bootstrap using ThemeDisplay (no OAuth)
     (async () => {
+      // Try to get the current session user id from ThemeDisplay
+      const td = window.Liferay && window.Liferay.ThemeDisplay;
+      this._currentUserId = td && typeof td.getUserId === 'function' ? String(td.getUserId()) : null;
+      this._currentUserName = td && typeof td.getUserName === 'function' ? td.getUserName() : null;
+
+      if (this._currentUserId) {
+        try {
+          const r = await fetch(`/o/headless-admin-user/v1.0/user-accounts/${this._currentUserId}`, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' }
+          });
+          if (r.ok) {
+            const me = await r.json();
+            this._currentUser = me;
+            // Try to populate roles/teams if your instance exposes those endpoints
+            try {
+              const rr = await fetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/account-roles`, { credentials:'same-origin', headers:{Accept:'application/json'}});
+              if (rr.ok) {
+                const roles = await rr.json();
+                this._cachedUserRoles = Array.isArray(roles) ? roles : (roles.items || []);
+              } else {
+                this._cachedUserRoles = [];
+              }
+            } catch(e){ this._cachedUserRoles = []; }
+
+            try {
+              const tr = await fetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/teams`, { credentials:'same-origin', headers:{Accept:'application/json'}});
+              if (tr.ok) {
+                const teams = await tr.json();
+                this._cachedUserTeams = Array.isArray(teams) ? teams : (teams.items || []);
+              } else {
+                this._cachedUserTeams = [];
+              }
+            } catch(e){ this._cachedUserTeams = []; }
+
+          } else {
+            // fallback: ThemeDisplay info only
+            this._currentUser = { id: this._currentUserId, name: this._currentUserName };
+            this._cachedUserRoles = [];
+            this._cachedUserTeams = [];
+            console.warn('incidentElement: same-origin user fetch returned', r.status);
+          }
+        } catch (err) {
+          this._currentUser = { id: this._currentUserId, name: this._currentUserName };
+          this._cachedUserRoles = [];
+          this._cachedUserTeams = [];
+          console.warn('incidentElement: user fetch failed', err);
+        }
+      } else {
+        // No ThemeDisplay available; leave _currentUser null
+        this._currentUser = null;
+        this._cachedUserRoles = [];
+        this._cachedUserTeams = [];
+        console.warn('incidentElement: ThemeDisplay.getUserId not available in this context');
+      }
+
+      // Proceed to load incidents (unchanged)
       await this.loadData();
     })();
   }
@@ -329,7 +381,31 @@ class IncidentElement extends HTMLElement {
 
     const serverDeclared = !!(i.actions && Object.keys(i.actions).length && this._isActionsEditable(i.actions));
     const cached = this.editAccessCache.has(idNum) ? this.editAccessCache.get(idNum) === true : null;
-    const canEdit = serverDeclared || (cached === true);
+
+   // robust role check (replace existing apiRoleAllow line)
+    const roles = this._cachedUserRoles || [];
+    if (!this._roleShapeLogged) { console.log('cachedUserRoles sample', roles[0]); this._roleShapeLogged = true; }
+
+    // Configure allowed roles here (prefer id or key if you have them)
+    const allowedRoleIds = new Set([]); 
+    const allowedRoleKeys = new Set(['testteam2']); 
+    const allowedRoleNames = new Set(['test team 2']); 
+
+    const apiRoleAllow = roles.some(r => {
+      const id = Number(r?.id || r?.roleId || 0);
+      if (id && allowedRoleIds.has(id)) return true;
+
+      const key = (r?.roleKey || r?.key || '').toString().toLowerCase();
+      if (key && allowedRoleKeys.has(key)) return true;
+
+      const name = (r?.name || r?.roleName || r?.label || '').toString().toLowerCase().trim();
+      if (name && allowedRoleNames.has(name)) return true;
+
+      return false;
+    }); 
+
+    const apiTeamAllow = false;
+    const canEdit = serverDeclared || (cached === true) || apiRoleAllow || apiTeamAllow;
 
 
 
