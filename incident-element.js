@@ -216,7 +216,7 @@ class IncidentElement extends HTMLElement {
       if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, null);
 
       try {
-        const res = await fetch(`/o/c/incidents/${idNum}?fields=*`, {
+        const res = await fetch(`/o/c/incidents/${idNum}`, {
           headers: { Accept: 'application/json' },
        
           credentials: 'same-origin'
