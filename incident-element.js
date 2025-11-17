@@ -12,6 +12,11 @@ class IncidentElement extends HTMLElement {
 
   }
 
+  _isActionsEditable(actions = {}) {
+    const editKeys = ['update','edit','modify','patch','put','UPDATE','EDIT','update_entry','edit_entry'];
+    return editKeys.some(k => Object.prototype.hasOwnProperty.call(actions, k));
+  }
+
   connectedCallback() {
     console.log("incidentElement connected");
     this.innerHTML = `
@@ -127,7 +132,7 @@ class IncidentElement extends HTMLElement {
 
       if (this._currentUserId) {
         try {
-          const r = await fetch(`/o/headless-admin-user/v1.0/user-accounts/${this._currentUserId}`, {
+          const r = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
             credentials: 'same-origin',
             headers: { Accept: 'application/json' }
           });
@@ -276,7 +281,7 @@ class IncidentElement extends HTMLElement {
 
         if (!res.ok) {
           if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, null); 
-          console.warn('incidentElement: Permission fetch failed for', idNum, 'Status:', res.status); // <-- NEW LOG
+          console.warn('incidentElement: Permission fetch failed for', idNum, 'Status:', res.status);
           return;
         }
 
