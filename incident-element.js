@@ -130,6 +130,25 @@ class IncidentElement extends HTMLElement {
       this._currentUserId = td && typeof td.getUserId === 'function' ? String(td.getUserId()) : null;
       this._currentUserName = td && typeof td.getUserName === 'function' ? td.getUserName() : null;
 
+      if (!this._currentUserId) {
+        try {
+          const r = await fetch('/self-auth-rest/entitlements', {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' }
+          });
+          if (r.ok) {
+            const j = await r.json();
+            const names = (j.roles || []).map(s => s.toString());
+            this._cachedUserRoles = names.map(n => ({ id: null, key: n.toLowerCase(), name: n.toLowerCase() }));
+          } else {
+            this._cachedUserRoles = [];
+          }
+        } catch (e) {
+          console.warn('incidentElement: entitlements fetch failed', e);
+          this._cachedUserRoles = [];
+        }
+      }
+
       if (this._currentUserId) {
         try {
           const r = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
@@ -144,7 +163,8 @@ class IncidentElement extends HTMLElement {
               const rr = await fetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/account-roles`, { credentials:'same-origin', headers:{Accept:'application/json'}});
               if (rr.ok) {
                 const roles = await rr.json();
-                this._cachedUserRoles = Array.isArray(roles) ? roles : (roles.items || []);
+                const acctRoles = Array.isArray(roles) ? roles : (roles.items || []);
+                this._cachedUserRoles = acctRoles.length ? acctRoles : (this._cachedUserRoles || []);
               } else {
                 this._cachedUserRoles = [];
               }
