@@ -123,85 +123,51 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
-    // bootstrap using ThemeDisplay (no OAuth)
+    const OAUTH2 = {
+      clientId: 'id-7bde6d5b-615a-9079-3d78-42dfe764e7c',
+      authorizeUrl: '/o/oauth2/authorize',
+      tokenUrl: '/o/oauth2/token',
+      redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
+      scopes: ['my-user-account.read','user-accounts.read','teams.read'].join(' ')
+    };
+
+    function getAccessToken() {
+      return sessionStorage.getItem('oauth_access_token');
+    }
+
+    async function apiFetch(url, opts = {}) {
+      const token = getAccessToken();
+      if (!token) throw new Error('Missing access token');
+      const headers = new Headers(opts.headers || {});
+      headers.set('Authorization', `Bearer ${token}`);
+      headers.set('Accept', 'application/json');
+      return fetch(url, { ...opts, headers });
+    }
+
+    async function loadUserRoles() {
+      const me = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
+      const rolesRes = await apiFetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/account-roles`);
+      const roles = Array.isArray(rolesRes) ? rolesRes : (rolesRes.items || []);
+      return roles.map(r => ({
+        id: Number(r.id || r.roleId || 0),
+        key: String(r.roleKey || r.key || '').toLowerCase(),
+        name: String(r.name || r.roleName || r.label || '').toLowerCase().trim()
+      }));
+    }
+
     (async () => {
-      // Try to get the current session user id from ThemeDisplay
-      const td = window.Liferay && window.Liferay.ThemeDisplay;
-      this._currentUserId = td && typeof td.getUserId === 'function' ? String(td.getUserId()) : null;
-      this._currentUserName = td && typeof td.getUserName === 'function' ? td.getUserName() : null;
-
-      if (!this._currentUserId) {
-        try {
-          const r = await fetch('/self-auth-rest/entitlements', {
-            credentials: 'same-origin',
-            headers: { Accept: 'application/json' }
-          });
-          if (r.ok) {
-            const j = await r.json();
-            const names = (j.roles || []).map(s => s.toString());
-            this._cachedUserRoles = names.map(n => ({ id: null, key: n.toLowerCase(), name: n.toLowerCase() }));
-          } else {
-            this._cachedUserRoles = [];
-          }
-        } catch (e) {
-          console.warn('incidentElement: entitlements fetch failed', e);
-          this._cachedUserRoles = [];
-        }
+      if (!getAccessToken()) {
+        await this.startPkceAuth();
+        return;
       }
-
-      if (this._currentUserId) {
-        try {
-          const r = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-            credentials: 'same-origin',
-            headers: { Accept: 'application/json' }
-          });
-          if (r.ok) {
-            const me = await r.json();
-            this._currentUser = me;
-            // Try to populate roles/teams if your instance exposes those endpoints
-            try {
-              const rr = await fetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/account-roles`, { credentials:'same-origin', headers:{Accept:'application/json'}});
-              if (rr.ok) {
-                const roles = await rr.json();
-                const acctRoles = Array.isArray(roles) ? roles : (roles.items || []);
-                this._cachedUserRoles = acctRoles.length ? acctRoles : (this._cachedUserRoles || []);
-              } else {
-                this._cachedUserRoles = [];
-              }
-            } catch(e){ this._cachedUserRoles = []; }
-
-            try {
-              const tr = await fetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/teams`, { credentials:'same-origin', headers:{Accept:'application/json'}});
-              if (tr.ok) {
-                const teams = await tr.json();
-                this._cachedUserTeams = Array.isArray(teams) ? teams : (teams.items || []);
-              } else {
-                this._cachedUserTeams = [];
-              }
-            } catch(e){ this._cachedUserTeams = []; }
-
-          } else {
-            // fallback: ThemeDisplay info only
-            this._currentUser = { id: this._currentUserId, name: this._currentUserName };
-            this._cachedUserRoles = [];
-            this._cachedUserTeams = [];
-            console.warn('incidentElement: same-origin user fetch returned', r.status);
-          }
-        } catch (err) {
-          this._currentUser = { id: this._currentUserId, name: this._currentUserName };
-          this._cachedUserRoles = [];
-          this._cachedUserTeams = [];
-          console.warn('incidentElement: user fetch failed', err);
-        }
-      } else {
-        // No ThemeDisplay available; leave _currentUser null
-        this._currentUser = null;
+      try {
+        const roles = await loadUserRoles();
+        this._cachedUserRoles = roles;
+      } catch (e) {
+        console.warn('PKCE role fetch failed', e);
         this._cachedUserRoles = [];
-        this._cachedUserTeams = [];
-        console.warn('incidentElement: ThemeDisplay.getUserId not available in this context');
       }
 
-      // Proceed to load incidents (unchanged)
       await this.loadData();
     })();
   }
@@ -235,6 +201,32 @@ class IncidentElement extends HTMLElement {
     const opened = this.parseDate(incident.opened);
 
     return closed || updated || opened || new Date(0);
+  }
+
+  async startPkceAuth() {
+    const verifier = [...crypto.getRandomValues(new Uint8Array(64))]
+      .map(b => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~'[b % 66])
+      .join('');
+    const enc = new TextEncoder().encode(verifier);
+    const hash = await crypto.subtle.digest('SHA-256', enc);
+    const challenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+/g, '');
+    const state = crypto.randomUUID();
+
+    sessionStorage.setItem('pkce_verifier', verifier);
+    sessionStorage.setItem('pkce_state', state);
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: OAUTH2.clientId,
+      redirect_uri: OAUTH2.redirectUri,
+      scope: OAUTH2.scopes,
+      code_challenge_method: 'S256',
+      code_challenge: challenge,
+      state
+    });
+
+    window.location.href = `${OAUTH2.authorizeUrl}?${params.toString()}`;
   }
 
   renderList() {
