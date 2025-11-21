@@ -157,7 +157,9 @@ class IncidentElement extends HTMLElement {
 
     (async () => {
       if (!getAccessToken()) {
-        await this.startPkceAuth();
+        if (!localStorage.getItem('pkce_verifier')) {
+          await this.startPkceAuth();
+        }
         return;
       }
       try {
@@ -213,8 +215,8 @@ class IncidentElement extends HTMLElement {
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+/g, '');
     const state = crypto.randomUUID();
 
-    sessionStorage.setItem('pkce_verifier', verifier);
-    sessionStorage.setItem('pkce_state', state);
+    localStorage.setItem('pkce_verifier', verifier);
+    localStorage.setItem('pkce_state', state);
 
     const params = new URLSearchParams({
       response_type: 'code',
