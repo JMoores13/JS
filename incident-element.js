@@ -1,3 +1,11 @@
+const OAUTH2 = {
+  clientId: 'id-7bde6d5b-615a-9079-3d78-42dfe764e7c',
+  authorizeUrl: '/o/oauth2/authorize',
+  tokenUrl: '/o/oauth2/token',
+  redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
+  scopes: ['my-user-account.read','user-accounts.read','teams.read'].join(' ')
+};
+
 class IncidentElement extends HTMLElement {
   constructor() {
     super();
@@ -122,14 +130,6 @@ class IncidentElement extends HTMLElement {
       this.currentPage = 0;
       this.renderList();
     });
-
-    const OAUTH2 = {
-      clientId: 'id-7bde6d5b-615a-9079-3d78-42dfe764e7c',
-      authorizeUrl: '/o/oauth2/authorize',
-      tokenUrl: '/o/oauth2/token',
-      redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
-      scopes: ['my-user-account.read','user-accounts.read','teams.read'].join(' ')
-    };
 
     function getAccessToken() {
       return sessionStorage.getItem('oauth_access_token');
