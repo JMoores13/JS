@@ -132,7 +132,7 @@ class IncidentElement extends HTMLElement {
     });
 
     function getAccessToken() {
-      return sessionStorage.getItem('oauth_access_token');
+      return localStorage.getItem('oauth_access_token');
     }
 
     async function apiFetch(url, opts = {}) {
