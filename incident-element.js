@@ -1,5 +1,5 @@
 const OAUTH2 = {
-  clientId: 'id-7bde6d5b-615a-9079-3d78-42dfe764e7c',
+  clientId: 'id-ccd397bf-6b1b-23d5-d6dd-63dc49c2c96a',
   authorizeUrl: '/o/oauth2/authorize',
   tokenUrl: '/o/oauth2/token',
   redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
