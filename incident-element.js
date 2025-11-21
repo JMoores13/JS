@@ -204,6 +204,7 @@ class IncidentElement extends HTMLElement {
   }
 
   async startPkceAuth() {
+    console.log('Authorize URL:', `${OAUTH2.authorizeUrl}?${params.toString()}`);
     const verifier = [...crypto.getRandomValues(new Uint8Array(64))]
       .map(b => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~'[b % 66])
       .join('');
