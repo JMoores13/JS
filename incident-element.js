@@ -3,7 +3,7 @@ const OAUTH2 = {
   authorizeUrl: '/o/oauth2/authorize',
   tokenUrl: '/o/oauth2/token',
   redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
-  scopes: ['my-user-account.read','user-accounts.read','teams.read'].join(' ')
+  scopes: ['my-user-account.read','user-accounts.read','teams.read','incidents.read'].join(' ')
 };
 
 class IncidentElement extends HTMLElement {
@@ -154,6 +154,7 @@ class IncidentElement extends HTMLElement {
         name: String(r.name || r.roleName || r.label || '').toLowerCase().trim()
       }));
     }
+    console.log('Access token:', getAccessToken());
 
     (async () => {
       if (!getAccessToken()) {
@@ -176,10 +177,7 @@ class IncidentElement extends HTMLElement {
 
   async loadData() {
     try {
-      const res = await fetch("/o/c/incidents?nestedFields=commentOnIncident", {
-        headers: { "Accept": "application/json" },
-        credentials: "same-origin"
-      });
+      const res = await apiFetch("/o/c/incidents?nestedFields=commentOnIncident");
       
       const data = await res.json();
       this.allItems = data.items || [];
