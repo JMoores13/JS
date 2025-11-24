@@ -4,7 +4,7 @@ const OAUTH2 = {
   authorizeUrl: '/o/oauth2/authorize',
   tokenUrl: '/o/oauth2/token',
   redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
-  scopes: ['my-user-account.read','user-accounts.read','teams.read','incidents.read'].join(' ')
+  scopes: ['my-user-account.read','user-accounts.read','teams.read','incidents.read', 'headless-admin-user.my-user-account.read', 'headless-admin-user.user-accounts.read', 'headless-admin-user.account-roles.read', 'c.incidents.read' ].join(' ')
 };
 
 // Generate a random PKCE code verifier
@@ -28,6 +28,19 @@ async function generateCodeChallenge(verifier) {
     .replace(/\//g, '_')
     .replace(/=+$/, '');
   return base64;
+}
+
+function getAccessToken() {
+  return localStorage.getItem('oauth_access_token');
+}
+
+async function apiFetch(url, opts = {}) {
+  const token = getAccessToken();
+  if (!token) throw new Error('Missing access token');
+  const headers = new Headers(opts.headers || {});
+  headers.set('Authorization', `Bearer ${token}`);
+  headers.set('Accept', 'application/json');
+  return fetch(url, { ...opts, headers });
 }
 
 class IncidentElement extends HTMLElement {
@@ -155,23 +168,12 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
-    function getAccessToken() {
-      return localStorage.getItem('oauth_access_token');
-    }
-
-    async function apiFetch(url, opts = {}) {
-      const token = getAccessToken();
-      if (!token) throw new Error('Missing access token');
-      const headers = new Headers(opts.headers || {});
-      headers.set('Authorization', `Bearer ${token}`);
-      headers.set('Accept', 'application/json');
-      return fetch(url, { ...opts, headers });
-    }
-
     async function loadUserRoles() {
-      const me = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
+      const meRes = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
+      const me = await meRes.json();
       const rolesRes = await apiFetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/account-roles`);
-      const roles = Array.isArray(rolesRes) ? rolesRes : (rolesRes.items || []);
+      const rolesData = await rolesRes.json();
+      const roles = rolesData.items || [];
       return roles.map(r => ({
         id: Number(r.id || r.roleId || 0),
         key: String(r.roleKey || r.key || '').toLowerCase(),
