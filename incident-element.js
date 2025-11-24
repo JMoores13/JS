@@ -483,8 +483,8 @@ class IncidentElement extends HTMLElement {
     // require authentication before showing edit links
     const isAuthenticated = !!getAccessToken();
 
-    // final decision rules (role-first)
-    const canEdit = (cached === true) || apiRoleAllow || (cached === null ? false : (serverDeclared && isAuthenticated));
+    // final decision rules (role-first, strict)
+    const canEdit = (cached === true) ||  apiRoleAllow;
 
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
