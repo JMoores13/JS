@@ -198,18 +198,19 @@ class IncidentElement extends HTMLElement {
       }
       const me = await meRes.json();
 
-      const rolesRes = await apiFetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/account-roles`);
+      const rolesRes = await apiFetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/roles`);
+
       if (!rolesRes.ok) {
         const body = await rolesRes.text().catch(()=>'<no body>');
         console.warn(`loadUserRoles: /account-roles returned ${rolesRes.status}`, body);
         return [];
       }
       const rolesData = await rolesRes.json();
+      const roles = rolesData.items || []; 
 
-      const roles = rolesData.items || [];
       return roles.map(r => ({
         id: Number(r.id || r.roleId || 0),
-        key: String(r.roleKey || r.key || '').toLowerCase(),
+        key: String(r.key || r.roleKey || '').toLowerCase(),
         name: String(r.name || r.roleName || r.label || '').toLowerCase().trim()
       }));
     }
@@ -338,7 +339,7 @@ class IncidentElement extends HTMLElement {
 
     this.querySelector("#incident-list").innerHTML = listHTML;
 
-    const permissionProbes = visibleItems.map(async (item) => {
+    /*const permissionProbes = visibleItems.map(async (item) => {
       const idNum = Number(item.id);
 
       if (this.editAccessCache.has(idNum) && this.editAccessCache.get(idNum) !== null) return;
@@ -370,10 +371,10 @@ class IncidentElement extends HTMLElement {
         console.warn('incidentElement: per-item probe failed for', idNum, err);
         this.editAccessCache.set(idNum, false); 
       }
-    });
+    });*/
 
     // Wait for all permission checks to finish
-    Promise.all(permissionProbes).then(() => {
+    /*Promise.all(permissionProbes).then(() => {
       
       let needsReRender = false;
       visibleItems.forEach(item => {
@@ -390,7 +391,7 @@ class IncidentElement extends HTMLElement {
       if (needsReRender) {
          this.renderList();
       }
-    });
+    });*/
 
     // After rendering, hydrate comments for expanded incidents
     this.expandedIds.forEach((id) => {
@@ -456,35 +457,25 @@ class IncidentElement extends HTMLElement {
     // cached probe result
     const cached = this.editAccessCache.has(idNum) ? this.editAccessCache.get(idNum) : null;
 
-    // roles previously fetched and normalized
+    // roles fetched and normalized earlier
     const roles = (this._cachedUserRoles || []).map(r => ({
       id: Number(r?.id || r?.roleId || 0),
       key: (r?.roleKey || r?.key || '').toString().toLowerCase(),
       name: (r?.name || r?.roleName || r?.label || '').toString().toLowerCase().trim()
     }));
 
-    //  configure which roles should allow editing
-    const allowedRoleKeys = new Set(['testteam2']); 
-    const allowedRoleNames = new Set(['test team 2']); 
+    // Configure which roles allow editing
+    const allowedRoleKeys = new Set(['testteam2']);
+    const allowedRoleNames = new Set(['test team 2']);
 
-    const rolesArray = (this._cachedUserRoles && this._cachedUserRoles.length > 0) ? this._cachedUserRoles : null;
-
-    const apiRoleAllow = (rolesArray || []).some(r => {
-      const key = (r?.key || '').toString().toLowerCase();
-      const name = (r?.name || '').toString().toLowerCase().trim();
-      if (key && allowedRoleKeys.has(key)) return true;
-      if (name && allowedRoleNames.has(name)) return true;
+    const apiRoleAllow = roles.some(r => {
+      if (r.key && allowedRoleKeys.has(r.key)) return true;
+      if (r.name && allowedRoleNames.has(r.name)) return true;
       return false;
     });
 
-    // server-declared actions are not trusted for anonymous users
-    const serverDeclared = !!(i.actions && Object.keys(i.actions).length && this._isActionsEditable(i.actions));
-
-    // require authentication before showing edit links
-    const isAuthenticated = !!getAccessToken();
-
-    // final decision rules (role-first, strict)
-    const canEdit = (cached === true) ||  apiRoleAllow;
+    // Strict role-first: ONLY roles grant edit
+    const canEdit = apiRoleAllow;
 
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
