@@ -55,14 +55,19 @@ async function apiFetch(url, opts = {}) {
 
   const res = await fetch(url, { ...opts, headers });
 
-  if(!res.ok){
+  if (!res.ok) {
     const www = res.headers.get('www-authenticate');
     console.warn(`apiFetch: ${url} returned ${res.status}`, { www, authHeader: `Bearer ${token && token.slice(0,8)}...` });
+    // If unauthorized, clear token and trigger auth flow
+    if (res.status === 401) {
+      // optional: clear stale token so next load triggers auth
+      localStorage.removeItem('oauth_access_token');
+    }
+    // Return the Response so callers can decide what to do
+    return res;
   }
-
-  return res
+  return res;
 }
-
 class IncidentElement extends HTMLElement {
   constructor() {
     super();
@@ -201,35 +206,46 @@ class IncidentElement extends HTMLElement {
     }
         console.log('Access token:', getAccessToken());
 
-        (async () => {
-          if (!getAccessToken()) {
-            await this.startPkceAuth();
-            return;
-          }
-          try {
-            const roles = await loadUserRoles();
-            this._cachedUserRoles = roles;
-          } catch (e) {
-            console.warn('PKCE role fetch failed', e);
-            this._cachedUserRoles = [];
-          }
+    (async () => {
+        if (!getAccessToken()) {
+          // start auth and stop further calls
+          await this.startPkceAuth();
+          return;
+        }
 
+        // token exists — try to load roles and incidents
+        try {
+          const roles = await loadUserRoles();
+          this._cachedUserRoles = roles;
+        } catch (e) {
+          console.warn('role fetch failed', e);
+          this._cachedUserRoles = [];
+        }
+
+        try {
           await this.loadData();
-        })();
+        } catch (e) {
+          console.warn('Initial loadData failed:', e);
+        }
+    })();
       }
 
   async loadData() {
-    try {
-      const res = await apiFetch("/o/c/incidents?nestedFields=commentOnIncident");
-      
-      const data = await res.json();
-      this.allItems = data.items || [];
-      console.log('incidentElement: loaded items=', this.allItems.length, 'sampleId=', this.allItems[0]?.id);
-      this.renderList();
-    } catch (e) {
-      console.error("Error fetching incidents:", e);
+    const res = await apiFetch("/o/c/incidents?nestedFields=commentOnIncident");
+    if (!res.ok) {
+      console.warn('loadData: incidents fetch failed', res.status);
+      // handle 401 by starting auth
+      if (res.status === 401) {
+        localStorage.removeItem('oauth_access_token');
+        await this.startPkceAuth();
+        return;
+      }
       this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
+      return;
     }
+    const data = await res.json();
+    this.allItems = data.items || [];
+    this.renderList();
   }
 
   parseDate(val) {
