@@ -428,35 +428,34 @@ class IncidentElement extends HTMLElement {
 
     const idNum = Number(i.id);
 
-    const serverDeclared = !!(i.actions && Object.keys(i.actions).length && this._isActionsEditable(i.actions));
-    const cached = this.editAccessCache.has(idNum) ? this.editAccessCache.get(idNum) === true : null;
+    // cached probe result
+    const cached = this.editAccessCache.has(idNum) ? this.editAccessCache.get(idNum) : null;
 
-   // robust role check (replace existing apiRoleAllow line)
-    const roles = this._cachedUserRoles || [];
-    if (!this._roleShapeLogged) { console.log('cachedUserRoles sample', roles[0]); this._roleShapeLogged = true; }
+    // roles previously fetched and normalized
+    const roles = (this._cachedUserRoles || []).map(r => ({
+      id: Number(r?.id || r?.roleId || 0),
+      key: (r?.roleKey || r?.key || '').toString().toLowerCase(),
+      name: (r?.name || r?.roleName || r?.label || '').toString().toLowerCase().trim()
+    }));
 
-    // Configure allowed roles here (prefer id or key if you have them)
-    const allowedRoleIds = new Set([]); 
+    //  configure which roles should allow editing
     const allowedRoleKeys = new Set(['testteam2']); 
     const allowedRoleNames = new Set(['test team 2']); 
 
     const apiRoleAllow = roles.some(r => {
-      const id = Number(r?.id || r?.roleId || 0);
-      if (id && allowedRoleIds.has(id)) return true;
-
-      const key = (r?.roleKey || r?.key || '').toString().toLowerCase();
-      if (key && allowedRoleKeys.has(key)) return true;
-
-      const name = (r?.name || r?.roleName || r?.label || '').toString().toLowerCase().trim();
-      if (name && allowedRoleNames.has(name)) return true;
-
+      if (r.key && allowedRoleKeys.has(r.key)) return true;
+      if (r.name && allowedRoleNames.has(r.name)) return true;
       return false;
-    }); 
+    });
 
-    const apiTeamAllow = false;
-    const canEdit = serverDeclared || (cached === true) || apiRoleAllow || apiTeamAllow;
+    // server-declared actions are not trusted for anonymous users
+    const serverDeclared = !!(i.actions && Object.keys(i.actions).length && this._isActionsEditable(i.actions));
 
+    // require authentication before showing edit links
+    const isAuthenticated = !!getAccessToken();
 
+    // final decision rules (role-first)
+    const canEdit = (cached === true) || apiRoleAllow || (cached === null ? false : (serverDeclared && isAuthenticated));
 
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
