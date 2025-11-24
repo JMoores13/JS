@@ -204,31 +204,32 @@ class IncidentElement extends HTMLElement {
   }
 
   async startPkceAuth() {
-    console.log('Authorize URL:', `${OAUTH2.authorizeUrl}?${params.toString()}`);
-    const verifier = [...crypto.getRandomValues(new Uint8Array(64))]
-      .map(b => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~'[b % 66])
-      .join('');
-    const enc = new TextEncoder().encode(verifier);
-    const hash = await crypto.subtle.digest('SHA-256', enc);
-    const challenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+/g, '');
+    const verifier = generateCodeVerifier();
+    const challenge = await generateCodeChallenge(verifier);
     const state = crypto.randomUUID();
 
+    // Save verifier and state
     localStorage.setItem('pkce_verifier', verifier);
     localStorage.setItem('pkce_state', state);
 
+    // Build authorize URL parameters
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: OAUTH2.clientId,
       redirect_uri: OAUTH2.redirectUri,
       scope: OAUTH2.scopes,
-      code_challenge_method: 'S256',
       code_challenge: challenge,
+      code_challenge_method: 'S256',
       state
     });
 
-    window.location.href = `${OAUTH2.authorizeUrl}?${params.toString()}`;
+    const authorizeUrl = `${OAUTH2.authorizeUrl}?${params.toString()}`;
+    console.log('Authorize URL:', authorizeUrl);
+
+    window.location.href = authorizeUrl;
   }
+
+
 
   renderList() {
     const start = this.currentPage * this.pageSize;
