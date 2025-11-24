@@ -181,8 +181,7 @@ class IncidentElement extends HTMLElement {
     console.log('Access token:', getAccessToken());
 
     (async () => {
-       if (!token) {
-        
+       if (!getAccessToken()) {
         await this.startPkceAuth();
         return;
       }
