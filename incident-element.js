@@ -181,10 +181,9 @@ class IncidentElement extends HTMLElement {
     console.log('Access token:', getAccessToken());
 
     (async () => {
-      if (!getAccessToken()) {
-        if (!localStorage.getItem('pkce_verifier')) {
-          await this.startPkceAuth();
-        }
+       if (!token) {
+        
+        await this.startPkceAuth();
         return;
       }
       try {
