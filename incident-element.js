@@ -197,11 +197,11 @@ class IncidentElement extends HTMLElement {
       const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
       if (!res.ok) return [];
       const me = await res.json();
-      const raw = me.roleBriefs || [];
+      const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
       return raw.map(r => ({
-        id: Number(r.id || 0),
-        name: String(r.name || '').toLowerCase().trim(),
-        key: String(r.name || '').toLowerCase().trim() 
+        id: Number(r.id || r.roleId || 0),
+        name: String(r.name || r.roleName || r.label || '').toLowerCase().trim(),
+        key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
       }));
     }
         console.log('Access token:', getAccessToken());
