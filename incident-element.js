@@ -189,49 +189,34 @@ class IncidentElement extends HTMLElement {
     });
 
     async function loadUserRoles() {
-      const meRes = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
-
-      if (!meRes.ok) {
-        const body = await meRes.text().catch(()=>'<no body>');
-        console.warn(`loadUserRoles: /my-user-account returned ${meRes.status}`, body);
-        return [];
-      }
-      const me = await meRes.json();
-
-      const rolesRes = await apiFetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/roles`);
-
-      if (!rolesRes.ok) {
-        const body = await rolesRes.text().catch(()=>'<no body>');
-        console.warn(`loadUserRoles: /account-roles returned ${rolesRes.status}`, body);
-        return [];
-      }
-      const rolesData = await rolesRes.json();
-      const roles = rolesData.items || []; 
-
-      return roles.map(r => ({
-        id: Number(r.id || r.roleId || 0),
-        key: String(r.key || r.roleKey || '').toLowerCase(),
-        name: String(r.name || r.roleName || r.label || '').toLowerCase().trim()
+      const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
+      if (!res.ok) return [];
+      const me = await res.json();
+      const raw = me.roleBriefs || [];
+      return raw.map(r => ({
+        id: Number(r.id || 0),
+        name: String(r.name || '').toLowerCase().trim(),
+        key: String(r.name || '').toLowerCase().trim() 
       }));
     }
-    console.log('Access token:', getAccessToken());
+        console.log('Access token:', getAccessToken());
 
-    (async () => {
-       if (!getAccessToken()) {
-        await this.startPkceAuth();
-        return;
-      }
-      try {
-        const roles = await loadUserRoles();
-        this._cachedUserRoles = roles;
-      } catch (e) {
-        console.warn('PKCE role fetch failed', e);
-        this._cachedUserRoles = [];
-      }
+        (async () => {
+          if (!getAccessToken()) {
+            await this.startPkceAuth();
+            return;
+          }
+          try {
+            const roles = await loadUserRoles();
+            this._cachedUserRoles = roles;
+          } catch (e) {
+            console.warn('PKCE role fetch failed', e);
+            this._cachedUserRoles = [];
+          }
 
-      await this.loadData();
-    })();
-  }
+          await this.loadData();
+        })();
+      }
 
   async loadData() {
     try {
@@ -464,18 +449,9 @@ class IncidentElement extends HTMLElement {
       name: (r?.name || r?.roleName || r?.label || '').toString().toLowerCase().trim()
     }));
 
-    // Configure which roles allow editing
-    const allowedRoleKeys = new Set(['testteam2']);
     const allowedRoleNames = new Set(['test team 2']);
-
-    const apiRoleAllow = roles.some(r => {
-      if (r.key && allowedRoleKeys.has(r.key)) return true;
-      if (r.name && allowedRoleNames.has(r.name)) return true;
-      return false;
-    });
-
-    // Strict role-first: ONLY roles grant edit
-    const canEdit = apiRoleAllow;
+    const apiRoleAllow = (this._cachedUserRoles || []).some(r => allowedRoleNames.has(r.name));
+    const canEdit = apiRoleAllow; 
 
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
