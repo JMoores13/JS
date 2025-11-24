@@ -48,9 +48,8 @@ function getAccessToken() {
 
 async function apiFetch(url, opts = {}) {
   const token = getAccessToken();
-  if (!token) throw new Error('Missing access token');
   const headers = new Headers(opts.headers || {});
-  headers.set('Authorization', `Bearer ${token}`);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
   headers.set('Accept', 'application/json');
 
   const res = await fetch(url, { ...opts, headers });
@@ -60,11 +59,9 @@ async function apiFetch(url, opts = {}) {
     console.warn(`apiFetch: ${url} returned ${res.status}`, { www, authHeader: `Bearer ${token && token.slice(0,8)}...` });
     // If unauthorized, clear token and trigger auth flow
     if (res.status === 401) {
-      // optional: clear stale token so next load triggers auth
+      // clear stale token so next load triggers auth
       localStorage.removeItem('oauth_access_token');
     }
-    // Return the Response so callers can decide what to do
-    return res;
   }
   return res;
 }
@@ -208,8 +205,8 @@ class IncidentElement extends HTMLElement {
 
     (async () => {
         if (!getAccessToken()) {
-          // start auth and stop further calls
-          await this.startPkceAuth();
+          this._cachedUserRoles = [];
+          await this.loadDataAnonymous();
           return;
         }
 
@@ -236,8 +233,7 @@ class IncidentElement extends HTMLElement {
       console.warn('loadData: incidents fetch failed', res.status);
       // handle 401 by starting auth
       if (res.status === 401) {
-        localStorage.removeItem('oauth_access_token');
-        await this.startPkceAuth();
+        await this.loadDataAnonymous();
         return;
       }
       this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
@@ -260,6 +256,21 @@ class IncidentElement extends HTMLElement {
     const opened = this.parseDate(incident.opened);
 
     return closed || updated || opened || new Date(0);
+  }
+
+  async loadDataAnonymous() {
+    // Call without Authorization header
+    const res = await apiFetch("/o/c/incidents?nestedFields=commentOnIncident");
+    if (!res.ok) {
+      console.warn('Anonymous incidents fetch failed', res.status);
+      // Just show a neutral message
+      this.querySelector("#incident-list").innerHTML = "<p>No incidents available.</p>";
+      return;
+    }
+
+    const data = await res.json();
+    this.allItems = data.items || [];
+    this.renderList();
   }
 
   async startPkceAuth() {
