@@ -4,7 +4,12 @@ const OAUTH2 = {
   authorizeUrl: '/o/oauth2/authorize',
   tokenUrl: '/o/oauth2/token',
   redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
-  scopes: ['my-user-account.read','user-accounts.read','teams.read','incidents.read', 'headless-admin-user.my-user-account.read', 'headless-admin-user.user-accounts.read', 'headless-admin-user.account-roles.read', 'c.incidents.read' ].join(' ')
+  scopes: [
+    'headless-admin-user.my-user-account.read',
+    'headless-admin-user.user-accounts.read',
+    'headless-admin-user.account-roles.read',
+    'c.incidents.read'
+  ].join(' ')
 };
 
 // Generate a random PKCE code verifier
@@ -170,9 +175,13 @@ class IncidentElement extends HTMLElement {
 
     async function loadUserRoles() {
       const meRes = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
+      if (!meRes.ok) throw new Error('Unauthorized: ${meRes.status}');
       const me = await meRes.json();
+
       const rolesRes = await apiFetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/account-roles`);
+      if (!rolesRes.ok) throw new Error('Unauthorized: ${rolesRes.status}');
       const rolesData = await rolesRes.json();
+
       const roles = rolesData.items || [];
       return roles.map(r => ({
         id: Number(r.id || r.roleId || 0),
@@ -312,11 +321,7 @@ class IncidentElement extends HTMLElement {
       if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, null);
 
       try {
-        const res = await fetch(`/o/c/incidents/${idNum}`, {
-          headers: { Accept: 'application/json' },
-       
-          credentials: 'same-origin'
-        });
+        const res = await apiFetch(`/o/c/incidents/${idNum}`);
 
         if (!res.ok) {
           if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, null); 
