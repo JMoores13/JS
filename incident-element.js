@@ -227,6 +227,7 @@ class IncidentElement extends HTMLElement {
   }
 
   async startPkceAuth() {
+    console.log('startPkceAuth invoked');
     const verifier = generateCodeVerifier();
     const challenge = await generateCodeChallenge(verifier);
     const state = crypto.randomUUID();
