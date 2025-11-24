@@ -45,7 +45,15 @@ async function apiFetch(url, opts = {}) {
   const headers = new Headers(opts.headers || {});
   headers.set('Authorization', `Bearer ${token}`);
   headers.set('Accept', 'application/json');
-  return fetch(url, { ...opts, headers });
+
+  const res = await fetch(url, { ...opts, headers });
+
+  if(!res.ok){
+    const www = res.headers.get('www-authenticate');
+    console.warn(`apiFetch: ${url} returned ${res.status}`, { www, authHeader: `Bearer ${token && token.slice(0,8)}...` });
+  }
+
+  return res
 }
 
 class IncidentElement extends HTMLElement {
@@ -175,11 +183,20 @@ class IncidentElement extends HTMLElement {
 
     async function loadUserRoles() {
       const meRes = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
-      if (!meRes.ok) throw new Error('Unauthorized: ${meRes.status}');
+
+      if (!meRes.ok) {
+        const body = await meRes.text().catch(()=>'<no body>');
+        console.warn(`loadUserRoles: /my-user-account returned ${meRes.status}`, body);
+        return [];
+      }
       const me = await meRes.json();
 
       const rolesRes = await apiFetch(`/o/headless-admin-user/v1.0/user-accounts/${me.id}/account-roles`);
-      if (!rolesRes.ok) throw new Error('Unauthorized: ${rolesRes.status}');
+      if (!rolesRes.ok) {
+        const body = await rolesRes.text().catch(()=>'<no body>');
+        console.warn(`loadUserRoles: /account-roles returned ${rolesRes.status}`, body);
+        return [];
+      }
       const rolesData = await rolesRes.json();
 
       const roles = rolesData.items || [];
@@ -442,9 +459,13 @@ class IncidentElement extends HTMLElement {
     const allowedRoleKeys = new Set(['testteam2']); 
     const allowedRoleNames = new Set(['test team 2']); 
 
-    const apiRoleAllow = roles.some(r => {
-      if (r.key && allowedRoleKeys.has(r.key)) return true;
-      if (r.name && allowedRoleNames.has(r.name)) return true;
+    const rolesArray = (this._cachedUserRoles && this._cachedUserRoles.length > 0) ? this._cachedUserRoles : null;
+
+    const apiRoleAllow = (rolesArray || []).some(r => {
+      const key = (r?.key || '').toString().toLowerCase();
+      const name = (r?.name || '').toString().toLowerCase().trim();
+      if (key && allowedRoleKeys.has(key)) return true;
+      if (name && allowedRoleNames.has(name)) return true;
       return false;
     });
 
