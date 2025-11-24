@@ -5,10 +5,10 @@ const OAUTH2 = {
   tokenUrl: '/o/oauth2/token',
   redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
   scopes: [
-    'headless-admin-user.my-user-account.read',
-    'headless-admin-user.user-accounts.read',
-    'headless-admin-user.account-roles.read',
-    'c.incidents.read'
+    'Liferay.Headless.Admin.User.everything', 
+    'Liferay.Headless.Admin.User.everything.write', 
+    'Liferay.Headless.Admin.User.everything.read',
+    'c_incident.everything'
   ].join(' ')
 };
 
