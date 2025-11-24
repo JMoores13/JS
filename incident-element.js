@@ -22,6 +22,13 @@ function generateCodeVerifier() {
     .replace(/=+$/, '');
 }
 
+// Helper to remove the local storage variables
+function clearAuthState() {
+  localStorage.removeItem('oauth_access_token');
+  localStorage.removeItem('pkce_verifier');
+  localStorage.removeItem('pkce_state');
+}
+
 // Generate a code challenge from the verifier
 async function generateCodeChallenge(verifier) {
   const encoder = new TextEncoder();
@@ -254,6 +261,7 @@ class IncidentElement extends HTMLElement {
   }
 
   async startPkceAuth() {
+    clearAuthState();
     console.log('startPkceAuth invoked');
     const verifier = generateCodeVerifier();
     const challenge = await generateCodeChallenge(verifier);
