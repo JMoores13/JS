@@ -1,3 +1,4 @@
+// OAUTH2 vars to be used later
 const OAUTH2 = {
   clientId: 'id-ccd397bf-6b1b-23d5-d6dd-63dc49c2c96a',
   authorizeUrl: '/o/oauth2/authorize',
@@ -5,6 +6,29 @@ const OAUTH2 = {
   redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
   scopes: ['my-user-account.read','user-accounts.read','teams.read','incidents.read'].join(' ')
 };
+
+// Generate a random PKCE code verifier
+function generateCodeVerifier() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+// Generate a code challenge from the verifier
+async function generateCodeChallenge(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(digest));
+  const base64 = btoa(String.fromCharCode(...hashArray))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  return base64;
+}
 
 class IncidentElement extends HTMLElement {
   constructor() {
