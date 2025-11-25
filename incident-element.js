@@ -3,7 +3,7 @@ const OAUTH2 = {
   clientId: 'id-ccd397bf-6b1b-23d5-d6dd-63dc49c2c96a',
   authorizeUrl: 'http://localhost:8080/o/oauth2/authorize',
   tokenUrl: 'http://localhost:8080/o/oauth2/token',
-  redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
+    redirectUri: new URL('/web/incident-reporting-tool/callback', window.location.origin).toString(),
   scopes: [
     'Liferay.Headless.Admin.User.everything', 
     'Liferay.Headless.Admin.User.everything.write', 
@@ -101,6 +101,8 @@ class IncidentElement extends HTMLElement {
 
     this.editAccessCache = new Map();
 
+    this._uiUpdateTimer = null;
+
   }
 
   _isActionsEditable(actions = {}) {
@@ -111,31 +113,26 @@ class IncidentElement extends HTMLElement {
   connectedCallback() {
     console.log("incidentElement connected");
 
-    // Force-clear auth storage on page load only when NOT coming back from a successful callback
-      try {
-        const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback') ||
-                              window.location.pathname.includes('/o/oauth2/authorize');
+    try {
+      const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback') ||
+                            window.location.pathname.includes('/o/oauth2/authorize');
 
-        // If the callback just completed, skip clearing once and remove the marker
-        const justCompleted = sessionStorage.getItem('oauth_completed');
-        if (justCompleted) {
-          console.log('Auth just completed; preserving oauth_access_token and clearing oauth_completed flag');
-          try { sessionStorage.removeItem('oauth_completed'); } catch (e) {}
-        } else if (!isCallbackPath) {
-          // Normal case: clear stale PKCE artifacts but do NOT clear after a fresh callback
-          console.log('Clearing stale PKCE artifacts on page load');
-          try {
-            // remove only PKCE artifacts and in-progress flag; do NOT remove oauth_access_token here
-            localStorage.removeItem('pkce_verifier');
-            localStorage.removeItem('pkce_state');
-            sessionStorage.removeItem('oauth_in_progress');
-          } catch (e) {
-            console.warn('Failed to clear auth storage', e);
-          }
+      const justCompleted = sessionStorage.getItem('oauth_completed');
+      if (justCompleted) {
+        console.log('Auth just completed; preserving oauth_access_token and clearing oauth_completed flag');
+        try { sessionStorage.removeItem('oauth_completed'); } catch (e) {}
+      } else if (!isCallbackPath) {
+        console.log('Clearing only oauth_in_progress on page load (preserving pkce_verifier/state)');
+        try {
+          sessionStorage.removeItem('oauth_in_progress');
+          // DO NOT remove localStorage pkce_verifier or pkce_state here
+        } catch (e) {
+          console.warn('Failed to clear auth storage', e);
         }
-      } catch (e) {
-        console.warn('Auto-clear guard failed', e);
       }
+    } catch (e) {
+      console.warn('Auto-clear guard failed', e);
+    }
 
     this.innerHTML = `
       <style>
@@ -241,8 +238,12 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
-     // initial auth/data check
-    this.refreshAuthState();
+    // Debounced refresh to avoid UI flicker and repeated PKCE triggers
+    if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+    this._uiUpdateTimer = setTimeout(() => {
+      this._uiUpdateTimer = null;
+      this.refreshAuthState();
+    }, 250);
 
     if (!getAccessToken()) {
       this._cachedUserRoles = [];
@@ -274,7 +275,12 @@ class IncidentElement extends HTMLElement {
 
     // inside connectedCallback after this.refreshAuthState();
     window.addEventListener('oauth:token', () => {
-      this.refreshAuthState();
+      // Debounced refresh to avoid UI flicker and repeated PKCE triggers
+      if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+      this._uiUpdateTimer = setTimeout(() => {
+        this._uiUpdateTimer = null;
+        this.refreshAuthState();
+      }, 250);
     });
 
    // Cross-tab auth propagation: respond to token changes and broadcast events
@@ -288,7 +294,12 @@ class IncidentElement extends HTMLElement {
             if (ev.data === 'signed-out') {
               try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
             }
-            this.refreshAuthState();
+            // Debounced refresh to avoid UI flicker and repeated PKCE triggers
+            if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+            this._uiUpdateTimer = setTimeout(() => {
+              this._uiUpdateTimer = null;
+              this.refreshAuthState();
+            }, 250);
           }
         };
       } else {
@@ -299,7 +310,12 @@ class IncidentElement extends HTMLElement {
             if (!localStorage.getItem('oauth_access_token')) {
               try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
             }
-            this.refreshAuthState();
+            // Debounced refresh to avoid UI flicker and repeated PKCE triggers
+            if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+            this._uiUpdateTimer = setTimeout(() => {
+              this._uiUpdateTimer = null;
+              this.refreshAuthState();
+            }, 250);
           }
         });
       }
@@ -375,6 +391,22 @@ class IncidentElement extends HTMLElement {
   async refreshAuthState() {
     // Local token sanity check
     const token = getAccessToken();
+    // Prevent immediate reauth storms: if an auth flow is already in progress, wait a bit
+    const inProgress = sessionStorage.getItem('oauth_in_progress');
+    if (inProgress) {
+      const started = Number(inProgress) || 0;
+      // if started less than 30s ago, avoid starting another PKCE flow
+      if (Date.now() - started < 30 * 1000) {
+        console.log('refreshAuthState: auth already in progress; deferring refresh');
+        // show anonymous view while waiting
+        this._cachedUserRoles = [];
+        await this.loadDataAnonymous();
+        return;
+      } else {
+        // stale flag — remove it and continue
+        sessionStorage.removeItem('oauth_in_progress');
+      }
+    }
     console.log('refreshAuthState: token present?', Boolean(token));
 
     // If no token, go anonymous and attempt to load anonymous data
