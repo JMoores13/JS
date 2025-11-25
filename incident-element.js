@@ -43,7 +43,19 @@ async function generateCodeChallenge(verifier) {
 }
 
 function getAccessToken() {
-  return localStorage.getItem('oauth_access_token');
+  try {
+    const t = localStorage.getItem('oauth_access_token');
+    if (!t) return null;
+    const trimmed = String(t).trim();
+    if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return null;
+
+    if (trimmed.includes('.') && trimmed.split('.').length === 3) return trimmed;
+    if (trimmed.length > 20) return trimmed;
+    return null;
+  } catch (e) {
+    console.warn('getAccessToken: failed to read token', e);
+    return null;
+  }
 }
 
 window.startPkceAuth = () => {
@@ -231,6 +243,10 @@ class IncidentElement extends HTMLElement {
 
      // initial auth/data check
     this.refreshAuthState();
+
+    if (!getAccessToken()) {
+      this._cachedUserRoles = [];
+    }
 
     try{
       const isCallbackPath= window.location.pathname.includes('/web/incident-reporting-tool/callback');
@@ -539,25 +555,25 @@ class IncidentElement extends HTMLElement {
     // cached probe result
     const cached = this.editAccessCache.has(idNum) ? this.editAccessCache.get(idNum) : null;
 
-   // Defensive normalization of cached roles
-    const normalizedRoles = (this._cachedUserRoles || []).map(r => ({
+    // Defensive normalization of cached roles 
+    const normalizedRoles = Array.isArray(this._cachedUserRoles) ? (this._cachedUserRoles || []).map(r => ({
       id: Number(r?.id || r?.roleId || 0),
       key: String(r?.roleKey || r?.key || '').toLowerCase().trim(),
       name: String(r?.name || r?.roleName || r?.label || '').toLowerCase().trim()
-    }));
+    })) : [];
 
     // Allowed role names must be lowercase and trimmed
     const allowedRoleNames = new Set(['test team 2']);
 
-    // Check roles safely
-    const apiRoleAllow = normalizedRoles.some(r => {
+    // Only evaluate role allowance if we actually have roles loaded
+    const apiRoleAllow = normalizedRoles.length > 0 && normalizedRoles.some(r => {
       const nm = (r && r.name) ? r.name.toString().toLowerCase().trim() : '';
       return nm && allowedRoleNames.has(nm);
     });
 
-    // Strict token presence check: reject 'undefined', 'null', empty strings
+    // Strict token presence check
     const rawToken = getAccessToken();
-    const hasToken = typeof rawToken === 'string' && rawToken !== 'undefined' && rawToken !== 'null' && rawToken.trim() !== '';
+    const hasToken = typeof rawToken === 'string' && rawToken.length > 20;
 
     // Only allow edit when a valid token exists AND the API reports an allowed role
     const canEdit = Boolean(hasToken && apiRoleAllow);
