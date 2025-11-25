@@ -117,64 +117,113 @@ class IncidentElement extends HTMLElement {
   connectedCallback() {
     console.log("incidentElement connected");
 
-    // --- LIFERAY-AWARE AUTO-START ---
-    try {
-      const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback') ||
-                            window.location.pathname.includes('/o/oauth2/authorize');
+    // Put this on your /web/incident-reporting-tool/callback page (top of script)
+    (async () => {
+      try {
+        console.log('PKCE callback: starting exchange');
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get('code');
+        const state = url.searchParams.get('state');
 
-      // Preserve pkce_verifier/state until callback completes; only clear in-progress marker here
-      const justCompleted = sessionStorage.getItem('oauth_completed');
-      if (justCompleted) {
-        sessionStorage.removeItem('oauth_completed');
-      } else if (!isCallbackPath) {
-        sessionStorage.removeItem('oauth_in_progress');
-      }
+        console.log('Callback params:', { code: !!code, state: !!state });
 
-      const inProgress = sessionStorage.getItem('oauth_in_progress');
-      if (inProgress && (Date.now() - Number(inProgress) < 30 * 1000)) {
-        console.log('Auth already in progress; deferring PKCE start');
-      } else {
-        (async () => {
-          try {
-            const probe = await fetch('/o/headless-admin-user/v1.0/my-user-account', { credentials: 'same-origin', headers: { Accept: 'application/json' }});
-            if (probe.status === 200) {
-              const me = await probe.json();
-              const currentUserId = String(me.id || me.userId || '');
-              const token = getAccessToken();
-              const owner = localStorage.getItem('oauth_owner');
+        const verifier = localStorage.getItem('pkce_verifier');
+        const savedState = localStorage.getItem('pkce_state');
 
-              if (token && owner === currentUserId) {
-                console.log('Liferay session present and token owner matches; no PKCE start needed');
-                return;
-              }
+        console.log('LocalStorage at callback: pkce_verifier', verifier ? '<present>' : '<missing>', 'pkce_state', savedState ? '<present>' : '<missing>');
 
-              if (token && owner && owner !== currentUserId) {
-                console.warn('Token owner mismatch; clearing token so this tab can re-auth for current Liferay user');
-                try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
-                try { localStorage.removeItem('oauth_owner'); } catch (e) {}
-              }
+        if (!code || !state || !verifier || !savedState || state !== savedState) {
+          console.error('State mismatch or missing verifier; aborting token exchange', { code: !!code, state, savedState, verifier: !!verifier });
+          // Keep user on callback page or redirect back to app anonymously
+          window.location.href = '/web/incident-reporting-tool/';
+          return;
+        }
 
-              if (!getAccessToken()) {
-                sessionStorage.setItem('oauth_in_progress', String(Date.now()));
-                console.log('Liferay session detected; starting PKCE to obtain token for current user');
-                if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
-                else {
-                  const el = document.querySelector('incident-element');
-                  if (el && typeof el.startPkceAuth === 'function') el.startPkceAuth();
-                }
-              }
+        // Build token request body (x-www-form-urlencoded)
+        const body = new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: new URL('/web/incident-reporting-tool/callback', window.location.origin).toString(),
+          client_id: OAUTH2.clientId,
+          code_verifier: verifier
+        }).toString();
+
+        console.log('Exchanging code for token at', OAUTH2.tokenUrl);
+
+        const tokenRes = await fetch(OAUTH2.tokenUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+          body
+        });
+
+        if (!tokenRes.ok) {
+          const txt = await tokenRes.text().catch(() => '<no-body>');
+          console.error('Token endpoint returned', tokenRes.status, txt);
+          // leave PKCE artifacts so you can debug; redirect back to app anonymously
+          window.location.href = '/web/incident-reporting-tool/';
+          return;
+        }
+
+        const tokenJson = await tokenRes.json();
+        console.log('Token response keys:', Object.keys(tokenJson));
+
+        if (!tokenJson.access_token) {
+          console.error('No access_token in token response', tokenJson);
+          window.location.href = '/web/incident-reporting-tool/';
+          return;
+        }
+
+        // Save token
+        localStorage.setItem('oauth_access_token', tokenJson.access_token);
+        // Mark completed so main page won't clear token immediately
+        sessionStorage.setItem('oauth_completed', '1');
+
+        // Use token to fetch current user and set oauth_owner
+        try {
+          const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${tokenJson.access_token}`, Accept: 'application/json' },
+            credentials: 'same-origin'
+          });
+
+          if (meRes.ok) {
+            const me = await meRes.json();
+            const uid = String(me.id || me.userId || '');
+            if (uid) {
+              localStorage.setItem('oauth_owner', uid);
+              console.log('Stored oauth_owner', uid);
             } else {
-              console.log('No Liferay session detected (probe returned', probe.status, '); staying anonymous');
+              console.warn('Could not determine user id from /my-user-account', me);
             }
-          } catch (e) {
-            console.warn('Liferay session probe failed', e);
+          } else {
+            console.warn('/my-user-account returned', meRes.status);
           }
-        })();
+        } catch (e) {
+          console.warn('Failed to fetch /my-user-account after token exchange', e);
+        }
+
+        // Clean up PKCE artifacts now that token is stored
+        try {
+          localStorage.removeItem('pkce_verifier');
+          localStorage.removeItem('pkce_state');
+        } catch (e) { /* ignore */ }
+
+        // Notify other tabs
+        try {
+          if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
+          else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
+        } catch (e) {}
+
+        // Remove in-progress flag and redirect back to app
+        try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+        console.log('Token exchange complete; redirecting back to app');
+        window.location.href = '/web/incident-reporting-tool/';
+      } catch (err) {
+        console.error('Callback exchange error', err);
+        try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+        window.location.href = '/web/incident-reporting-tool/';
       }
-    } catch (e) {
-      console.warn('Auto-start guard failed', e);
-    }
-    // --- end auto-start ---
+    })();
 
     this.innerHTML = `
       <style>
