@@ -3,10 +3,10 @@ const OAUTH2 = {
   clientId: 'id-ccd397bf-6b1b-23d5-d6dd-63dc49c2c96a',
   authorizeUrl: 'http://localhost:8080/o/oauth2/authorize',
   tokenUrl: 'http://localhost:8080/o/oauth2/token',
-    redirectUri: new URL('/web/incident-reporting-tool/callback', window.location.origin).toString(),
+  redirectUri: new URL('/web/incident-reporting-tool/callback', window.location.origin).toString(),
   scopes: [
-    'Liferay.Headless.Admin.User.everything', 
-    'Liferay.Headless.Admin.User.everything.write', 
+    'Liferay.Headless.Admin.User.everything',
+    'Liferay.Headless.Admin.User.everything.write',
     'Liferay.Headless.Admin.User.everything.read',
     'c_incident.everything'
   ].join(' ')
@@ -22,11 +22,16 @@ function generateCodeVerifier() {
     .replace(/=+$/, '');
 }
 
-// Helper to remove the local storage variables
+// Helper to remove the local storage variables (used for explicit sign-out)
 function clearAuthState() {
-  localStorage.removeItem('oauth_access_token');
-  localStorage.removeItem('pkce_verifier');
-  localStorage.removeItem('pkce_state');
+  try {
+    localStorage.removeItem('oauth_access_token');
+    localStorage.removeItem('oauth_owner');
+  } catch (e) { /* ignore */ }
+  try {
+    localStorage.removeItem('pkce_verifier');
+    localStorage.removeItem('pkce_state');
+  } catch (e) { /* ignore */ }
 }
 
 // Generate a code challenge from the verifier
@@ -42,6 +47,7 @@ async function generateCodeChallenge(verifier) {
   return base64;
 }
 
+// Strict token read: return null for garbage values
 function getAccessToken() {
   try {
     const t = localStorage.getItem('oauth_access_token');
@@ -58,6 +64,7 @@ function getAccessToken() {
   }
 }
 
+// Global helper to call element.startPkceAuth safely
 window.startPkceAuth = () => {
   const el = document.querySelector('incident-element');
   if (el && typeof el.startPkceAuth === 'function') {
@@ -66,7 +73,7 @@ window.startPkceAuth = () => {
   } else {
     console.warn('window.startPkceAuth: incident-element not found or method missing');
   }
-}
+};
 
 async function apiFetch(url, opts = {}) {
   const token = getAccessToken();
@@ -78,17 +85,17 @@ async function apiFetch(url, opts = {}) {
 
   if (!res.ok) {
     const www = res.headers.get('www-authenticate');
-    console.warn(`apiFetch: ${url} returned ${res.status}`, { www, authHeader: `Bearer ${token && token.slice(0,8)}...` });
-    // If unauthorized, clear token and trigger auth flow
+    console.warn(`apiFetch: ${url} returned ${res.status}`, { www, authHeader: token ? `Bearer ${token.slice(0,8)}...` : '<none>' });
+    // If unauthorized, clear token and PKCE artifacts so UI can't rely on a bad value
     if (res.status === 401) {
-      // clear stale token so next load triggers auth
-      localStorage.removeItem('oauth_access_token');
-      localStorage.removeItem('pkce_verifier');
-      localStorage.removeItem('pkce_state');
+      try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+      try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+      // Do not remove pkce_verifier/state here — callback must be able to read them if in progress
     }
   }
   return res;
 }
+
 class IncidentElement extends HTMLElement {
   constructor() {
     super();
@@ -98,11 +105,8 @@ class IncidentElement extends HTMLElement {
     this.allItems = [];
     this.searchQuery = "";
     this.searchDebounceTimer = null;
-
     this.editAccessCache = new Map();
-
     this._uiUpdateTimer = null;
-
   }
 
   _isActionsEditable(actions = {}) {
@@ -112,12 +116,13 @@ class IncidentElement extends HTMLElement {
 
   connectedCallback() {
     console.log("incidentElement connected");
+
+    // --- LIFERAY-AWARE AUTO-START ---
     try {
-      // If callback/authorize pages, skip
       const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback') ||
                             window.location.pathname.includes('/o/oauth2/authorize');
 
-      // Clear only in-progress marker on normal loads; do NOT remove pkce_verifier/state
+      // Preserve pkce_verifier/state until callback completes; only clear in-progress marker here
       const justCompleted = sessionStorage.getItem('oauth_completed');
       if (justCompleted) {
         sessionStorage.removeItem('oauth_completed');
@@ -125,13 +130,10 @@ class IncidentElement extends HTMLElement {
         sessionStorage.removeItem('oauth_in_progress');
       }
 
-      // If an auth flow is already in progress recently, defer further action
       const inProgress = sessionStorage.getItem('oauth_in_progress');
       if (inProgress && (Date.now() - Number(inProgress) < 30 * 1000)) {
         console.log('Auth already in progress; deferring PKCE start');
       } else {
-        // Probe Liferay to see if the user already has a Liferay session.
-        // If they do, and we don't have a valid token for that user, start PKCE.
         (async () => {
           try {
             const probe = await fetch('/o/headless-admin-user/v1.0/my-user-account', { credentials: 'same-origin', headers: { Accept: 'application/json' }});
@@ -141,20 +143,17 @@ class IncidentElement extends HTMLElement {
               const token = getAccessToken();
               const owner = localStorage.getItem('oauth_owner');
 
-              // If we have a token and owner matches, nothing to do
               if (token && owner === currentUserId) {
                 console.log('Liferay session present and token owner matches; no PKCE start needed');
                 return;
               }
 
-              // If token exists but owner differs, clear it (do not auto-redirect)
               if (token && owner && owner !== currentUserId) {
                 console.warn('Token owner mismatch; clearing token so this tab can re-auth for current Liferay user');
                 try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
                 try { localStorage.removeItem('oauth_owner'); } catch (e) {}
               }
 
-              // If no token (or we just cleared it), start PKCE to obtain a token for the current Liferay user
               if (!getAccessToken()) {
                 sessionStorage.setItem('oauth_in_progress', String(Date.now()));
                 console.log('Liferay session detected; starting PKCE to obtain token for current user');
@@ -175,97 +174,28 @@ class IncidentElement extends HTMLElement {
     } catch (e) {
       console.warn('Auto-start guard failed', e);
     }
+    // --- end auto-start ---
 
     this.innerHTML = `
       <style>
-      .incident-entry {
-        padding: 0.75em 0;
-        border-bottom: 1px solid #ccc;
-      }
-      .comment-body {
-        margin-top: 0.25em;
-        padding-left: 1em;
-        font-size: 1em;
-      }
-      .comment-title {
-        font-size: 1em;
-        font-weight: bold;
-      }
-      .incident-title {
-        font-size: 1.1em;
-        font-weight: bold;
-        margin-bottom: 0.5em;
-      }
-       h2.incident-title-header {
-        background-color: rgb(45, 90, 171);
-        color: white;
-        padding: 0.31em;
-        border-radius: 0.25em;
-      }
-      .incident-description {
-        margin-top: 0.5em;
-      }
-      .incident-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.5em 1em;
-      }
-      .incident-grid div {
-        display: flex;
-        flex-direction: column;
-      }
-      .toggle-link {
-        cursor: pointer;
-        color: #007bff;
-        text-decoration: none;
-      }
-      .pagination {
-        margin-top: 1em;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-      .page-number {
-        margin: 0 0.25em;
-        padding: 0.4em 0.8em;
-        background: #f0f0f0;
-        border: 1px solid #ccc;
-        cursor: pointer;
-      }
-      .active-page {
-        background: #007bff;
-        color: white;
-        font-weight: bold;
-      }
-      .page-size-select {
-        margin-left: 1em;
-      }
-      .search-bar {
-        margin-bottom: 1em;
-      }
-      #search-input {
-        width: 100%;
-        padding: 0.5em;
-        font-size: 1em;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-      }
-      .incident-comments .comment {
-        margin-top: 0.25em;
-        font-size: 0.9em;
-      }
-      .comments-separator {
-        margin: 0.75em 0;
-        border: 0;
-        border-top: 1px solid #ccc;
-      }
-      .comment-header{
-        font-size: 1.1em;
-        font-weight: bold;
-        margin-bottom: 0.5em;
-        text-decoration: underline;
-      }
+      .incident-entry { padding: 0.75em 0; border-bottom: 1px solid #ccc; }
+      .comment-body { margin-top: 0.25em; padding-left: 1em; font-size: 1em; }
+      .comment-title { font-size: 1em; font-weight: bold; }
+      .incident-title { font-size: 1.1em; font-weight: bold; margin-bottom: 0.5em; }
+      h2.incident-title-header { background-color: rgb(45, 90, 171); color: white; padding: 0.31em; border-radius: 0.25em; }
+      .incident-description { margin-top: 0.5em; }
+      .incident-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em 1em; }
+      .incident-grid div { display: flex; flex-direction: column; }
+      .toggle-link { cursor: pointer; color: #007bff; text-decoration: none; }
+      .pagination { margin-top: 1em; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+      .page-number { margin: 0 0.25em; padding: 0.4em 0.8em; background: #f0f0f0; border: 1px solid #ccc; cursor: pointer; }
+      .active-page { background: #007bff; color: white; font-weight: bold; }
+      .page-size-select { margin-left: 1em; }
+      .search-bar { margin-bottom: 1em; }
+      #search-input { width: 100%; padding: 0.5em; font-size: 1em; border: 1px solid #ccc; border-radius: 4px; }
+      .incident-comments .comment { margin-top: 0.25em; font-size: 0.9em; }
+      .comments-separator { margin: 0.75em 0; border: 0; border-top: 1px solid #ccc; }
+      .comment-header{ font-size: 1.1em; font-weight: bold; margin-bottom: 0.5em; text-decoration: underline; }
       </style>
       <h2 class="incident-title-header">Incident List</h2>
       <div class="search-bar">
@@ -280,7 +210,7 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
-    // Debounced refresh to avoid UI flicker and repeated PKCE triggers
+    // Debounced initial refresh
     if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
     this._uiUpdateTimer = setTimeout(() => {
       this._uiUpdateTimer = null;
@@ -291,33 +221,8 @@ class IncidentElement extends HTMLElement {
       this._cachedUserRoles = [];
     }
 
-    try{
-      const isCallbackPath= window.location.pathname.includes('/web/incident-reporting-tool/callback');
-      const isAuthorizePath = window.location.pathname.includes('/o/oauth2/authorize');
-      const tokenPresent = Boolean(getAccessToken());
-      const inProgress = sessionStorage.getItem('oauth_in_progress');
-
-      console.log('auto-auth check:', {isCallbackPath, isAuthorizePath, tokenPresent, inProgress});
-
-      if(!tokenPresent && !isCallbackPath && !isAuthorizePath && !inProgress){
-        sessionStorage.setItem('oauth_in_progress', String(Date.now()));
-        if (typeof window.startPkceAuth === 'function') {
-          window.startPkceAuth();
-        }else{
-          if(typeof this.startPkceAuth === 'function') {
-            this.startPkceAuth();
-          }else{
-            console.warn('Auto PKCE: startpkceauth not found.')
-          }
-        }
-      }
-    } catch(err) {
-      console.warn('Auto PKCE check failed', err);
-    }
-
-    // inside connectedCallback after this.refreshAuthState();
+    // Listen for oauth token events (callback will dispatch)
     window.addEventListener('oauth:token', () => {
-      // Debounced refresh to avoid UI flicker and repeated PKCE triggers
       if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
       this._uiUpdateTimer = setTimeout(() => {
         this._uiUpdateTimer = null;
@@ -325,18 +230,16 @@ class IncidentElement extends HTMLElement {
       }, 250);
     });
 
-   // Cross-tab auth propagation: respond to token changes and broadcast events
+    // Cross-tab propagation
     try {
       if ('BroadcastChannel' in window) {
         this._bc = new BroadcastChannel('incident-auth');
         this._bc.onmessage = (ev) => {
           if (ev.data === 'signed-in' || ev.data === 'signed-out') {
             console.log('BroadcastChannel auth event', ev.data);
-            // Clear per-tab user id on sign-out so next refresh will re-auth
             if (ev.data === 'signed-out') {
               try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
             }
-            // Debounced refresh to avoid UI flicker and repeated PKCE triggers
             if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
             this._uiUpdateTimer = setTimeout(() => {
               this._uiUpdateTimer = null;
@@ -346,13 +249,11 @@ class IncidentElement extends HTMLElement {
         };
       } else {
         window.addEventListener('storage', (e) => {
-          if (e.key === 'oauth_access_token') {
-            console.log('storage event oauth_access_token changed');
-            // If token was removed by another tab, clear per-tab user id
+          if (e.key === 'oauth_access_token' || e.key === 'oauth_owner') {
+            console.log('storage event oauth_access_token/oauth_owner changed');
             if (!localStorage.getItem('oauth_access_token')) {
               try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
             }
-            // Debounced refresh to avoid UI flicker and repeated PKCE triggers
             if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
             this._uiUpdateTimer = setTimeout(() => {
               this._uiUpdateTimer = null;
@@ -364,66 +265,25 @@ class IncidentElement extends HTMLElement {
     } catch (e) {
       console.warn('Cross-tab auth propagation setup failed', e);
     }
-
-    /*async function loadUserRoles() {
-      const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
-      if (!res.ok) return [];
-      const me = await res.json();
-      const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
-      return raw.map(r => ({
-        id: Number(r.id || r.roleId || 0),
-        name: String(r.name || r.roleName || r.label || '').toLowerCase().trim(),
-        key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
-      }));
-    }
-        console.log('Access token:', getAccessToken());
-
-    (async () => {
-        if (!getAccessToken()) {
-          this._cachedUserRoles = [];
-          await this.loadDataAnonymous();
-          return;
-        }
-
-        // token exists — try to load roles and incidents
-        try {
-          const roles = await loadUserRoles();
-          this._cachedUserRoles = roles;
-        } catch (e) {
-          console.warn('role fetch failed', e);
-          this._cachedUserRoles = [];
-        }
-
-        try {
-          await this.loadData();
-        } catch (e) {
-          console.warn('Initial loadData failed:', e);
-        }
-    })();*/
-      }
+  }
 
   async loadData() {
     const res = await apiFetch("/o/c/incidents?nestedFields=commentOnIncident");
     if (!res.ok) {
       console.warn('loadData: incidents fetch failed', res.status);
-      // handle 401 by starting auth
       if (res.status === 401) {
-        // avoid redirect loop: only start auth if no token and not already in progress
         if (!getAccessToken() && !sessionStorage.getItem('oauth_in_progress')) {
           sessionStorage.setItem('oauth_in_progress', String(Date.now()));
           console.log('No token and 401 received — initiating PKCE authorize');
           await this.startPkceAuth();
           return;
         }
-        // if token existed but still 401, fall back to anonymous
         await this.loadDataAnonymous();
         return;
       }
-
-    this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
-    return;
-  }
-
+      this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
+      return;
+    }
 
     const data = await res.json();
     this.allItems = data.items || [];
@@ -433,7 +293,7 @@ class IncidentElement extends HTMLElement {
   async refreshAuthState() {
     const token = getAccessToken();
 
-    // Respect in-progress flows: if another tab started auth recently, show anonymous until it completes
+    // Respect in-progress flows
     const inProgress = sessionStorage.getItem('oauth_in_progress');
     if (inProgress) {
       const started = Number(inProgress) || 0;
@@ -447,20 +307,17 @@ class IncidentElement extends HTMLElement {
       }
     }
 
-    // No token -> anonymous
     if (!token) {
       this._cachedUserRoles = [];
       await this.loadDataAnonymous();
       return;
     }
 
-    // Validate token by calling protected endpoint
     try {
       const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
 
       if (!res.ok) {
         console.warn('refreshAuthState: token rejected by server', res.status);
-        // Clear token and owner, but DO NOT auto-start PKCE; let user sign in explicitly or rely on Liferay session probe
         try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
         try { localStorage.removeItem('oauth_owner'); } catch (e) {}
         this._cachedUserRoles = [];
@@ -468,11 +325,9 @@ class IncidentElement extends HTMLElement {
         return;
       }
 
-      // Token accepted; get user id and roles
       const me = await res.json();
       const currentUserId = String(me.id || me.userId || '');
 
-      // If we have a stored owner and it differs, clear token and remain anonymous
       const storedOwner = localStorage.getItem('oauth_owner');
       if (storedOwner && storedOwner !== currentUserId) {
         console.warn('refreshAuthState: token owner mismatch; clearing token and staying anonymous', storedOwner, currentUserId);
@@ -483,10 +338,8 @@ class IncidentElement extends HTMLElement {
         return;
       }
 
-      // Save owner if not present
       try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
 
-      // Normalize roles and continue
       const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
       this._cachedUserRoles = raw.map(r => ({
         id: Number(r.id || r.roleId || 0),
@@ -501,7 +354,6 @@ class IncidentElement extends HTMLElement {
       return;
     }
 
-    // Load incidents now that we have validated roles
     await this.loadData();
   }
 
@@ -515,16 +367,13 @@ class IncidentElement extends HTMLElement {
     const closed = this.parseDate(incident.closed);
     const updated = this.parseDate(incident.updated);
     const opened = this.parseDate(incident.opened);
-
     return closed || updated || opened || new Date(0);
   }
 
   async loadDataAnonymous() {
-    // Call without Authorization header
     const res = await apiFetch("/o/c/incidents?nestedFields=commentOnIncident");
     if (!res.ok) {
       console.warn('Anonymous incidents fetch failed', res.status);
-      // Just show a neutral message
       this.querySelector("#incident-list").innerHTML = "<p>No incidents available.</p>";
       return;
     }
@@ -534,14 +383,13 @@ class IncidentElement extends HTMLElement {
   }
 
   async startPkceAuth() {
-    // Do not clear pkce_verifier here;
+    // Do not clear pkce_verifier here; preserve until callback completes
     console.log('startPkceAuth invoked - generating PKCE values');
 
     const verifier = generateCodeVerifier();
     const challenge = await generateCodeChallenge(verifier);
     const state = crypto.randomUUID();
 
-    // Save verifier and state to localStorage so callback can read them
     try {
       localStorage.setItem('pkce_verifier', verifier);
       localStorage.setItem('pkce_state', state);
@@ -551,7 +399,6 @@ class IncidentElement extends HTMLElement {
       throw e;
     }
 
-    // Build authorize URL parameters
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: OAUTH2.clientId,
@@ -585,7 +432,6 @@ class IncidentElement extends HTMLElement {
       );
     });
 
-    // Sort descending by closed/updated or opened
     filteredItems.sort((a, b) => {
       const dateA = this.getSortDate(a);
       const dateB = this.getSortDate(b);
@@ -617,11 +463,9 @@ class IncidentElement extends HTMLElement {
 
     this.querySelector("#incident-list").innerHTML = listHTML;
 
-    // After rendering, hydrate comments for expanded incidents
     this.expandedIds.forEach((id) => {
       const incident = this.allItems.find(i => String(i.id) === id);
       if (!incident) return;
-
       const container = this.querySelector(`#comments-${id}`);
       if (container) {
         const comments = incident.commentOnIncident || [];
@@ -645,11 +489,8 @@ class IncidentElement extends HTMLElement {
       el.addEventListener("click", (e) => {
         e.preventDefault();
         const id = el.dataset.id;
-        if (this.expandedIds.has(id)) {
-          this.expandedIds.delete(id);
-        } else {
-          this.expandedIds.add(id);
-        }
+        if (this.expandedIds.has(id)) this.expandedIds.delete(id);
+        else this.expandedIds.add(id);
         this.renderList();
       });
     });
@@ -668,7 +509,6 @@ class IncidentElement extends HTMLElement {
         this.currentPage = 0;
         this.renderList();
       });
-
     }
   }
 
@@ -676,32 +516,22 @@ class IncidentElement extends HTMLElement {
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
 
-    const idNum = Number(i.id);
-
-    // cached probe result
-    const cached = this.editAccessCache.has(idNum) ? this.editAccessCache.get(idNum) : null;
-
-    // Defensive normalization of cached roles 
     const normalizedRoles = Array.isArray(this._cachedUserRoles) ? (this._cachedUserRoles || []).map(r => ({
       id: Number(r?.id || r?.roleId || 0),
       key: String(r?.roleKey || r?.key || '').toLowerCase().trim(),
       name: String(r?.name || r?.roleName || r?.label || '').toLowerCase().trim()
     })) : [];
 
-    // Allowed role names must be lowercase and trimmed
     const allowedRoleNames = new Set(['test team 2']);
 
-    // Only evaluate role allowance if we actually have roles loaded
     const apiRoleAllow = normalizedRoles.length > 0 && normalizedRoles.some(r => {
       const nm = (r && r.name) ? r.name.toString().toLowerCase().trim() : '';
       return nm && allowedRoleNames.has(nm);
     });
 
-    // Strict token presence check
     const rawToken = getAccessToken();
     const hasToken = typeof rawToken === 'string' && rawToken.length > 20;
 
-    // Only allow edit when a valid token exists AND the API reports an allowed role
     const canEdit = Boolean(hasToken && apiRoleAllow);
 
     const editChunk = canEdit
@@ -807,4 +637,5 @@ class IncidentElement extends HTMLElement {
     `;
   }
 }
+
 customElements.define("incident-element", IncidentElement);
