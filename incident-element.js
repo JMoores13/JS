@@ -61,6 +61,8 @@ async function apiFetch(url, opts = {}) {
     if (res.status === 401) {
       // clear stale token so next load triggers auth
       localStorage.removeItem('oauth_access_token');
+      localStorage.removeItem('pkce_verifier');
+      localStorage.removeItem('pkce_state');
     }
   }
   return res;
@@ -205,7 +207,7 @@ class IncidentElement extends HTMLElement {
       }
     });
 
-    async function loadUserRoles() {
+    /*async function loadUserRoles() {
       const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
       if (!res.ok) return [];
       const me = await res.json();
@@ -239,7 +241,7 @@ class IncidentElement extends HTMLElement {
         } catch (e) {
           console.warn('Initial loadData failed:', e);
         }
-    })();
+    })();*/
       }
 
   async loadData() {
@@ -268,29 +270,31 @@ class IncidentElement extends HTMLElement {
       return;
     }
 
-    try {
-      const roles = await (async () => {
-        const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
-        if (!res.ok) return [];
+      try {
+      const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem('oauth_access_token');
+          this._cachedUserRoles = [];
+          await this.loadDataAnonymous();
+          return;
+        }
+        this._cachedUserRoles = [];
+      } else {
         const me = await res.json();
         const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
-        return raw.map(r => ({
+        this._cachedUserRoles = raw.map(r => ({
           id: Number(r.id || r.roleId || 0),
           name: String(r.name || r.roleName || r.label || '').toLowerCase().trim(),
           key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
         }));
-      })();
-      this._cachedUserRoles = roles;
+      }
     } catch (e) {
       console.warn('role fetch failed', e);
       this._cachedUserRoles = [];
     }
 
-    try {
-      await this.loadData();
-    } catch (e) {
-      console.warn('loadData failed:', e);
-    }
+    await this.loadData();
   }
 
   parseDate(val) {
@@ -472,7 +476,9 @@ class IncidentElement extends HTMLElement {
 
     const allowedRoleNames = new Set(['test team 2']);
     const apiRoleAllow = (this._cachedUserRoles || []).some(r => allowedRoleNames.has(r.name));
-    const canEdit = apiRoleAllow; 
+    const hasToken = Boolean(getAccessToken());
+
+    const canEdit = hasToken && apiRoleAllow; 
 
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
