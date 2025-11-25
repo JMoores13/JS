@@ -250,12 +250,20 @@ class IncidentElement extends HTMLElement {
       console.warn('loadData: incidents fetch failed', res.status);
       // handle 401 by starting auth
       if (res.status === 401) {
+        // If no token, initiate PKCE 
+        if (!getAccessToken()) {
+          await this.startPkceAuth();
+          return;
+        }
+        // If token existed but still 401, fall back to anonymous view
         await this.loadDataAnonymous();
         return;
       }
-      this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
-      return;
-    }
+    this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
+    return;
+  }
+
+
     const data = await res.json();
     this.allItems = data.items || [];
     this.renderList();
