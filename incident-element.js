@@ -99,15 +99,19 @@ class IncidentElement extends HTMLElement {
   connectedCallback() {
     console.log("incidentElement connected");
 
-    // Flush the previous values in local storage.
-    try {
-      const t = localStorage.getItem('oauth_access_token');
-      if (t === 'undefined' || t === 'null' || (typeof t === 'string' && t.trim() === '')) {
-        console.log('Clearing invalid oauth_access_token from localStorage');
+    // Force-clear auth storage on page load to ensure a fresh PKCE flow
+    const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback') ||
+                          window.location.pathname.includes('/o/oauth2/authorize');
+    if (!isCallbackPath) {
+      console.log('Clearing auth storage on page load to force fresh PKCE flow');
+      try {
         localStorage.removeItem('oauth_access_token');
+        localStorage.removeItem('pkce_verifier');
+        localStorage.removeItem('pkce_state');
+        sessionStorage.removeItem('oauth_in_progress');
+      } catch (e) {
+        console.warn('Failed to clear auth storage', e);
       }
-    } catch (e) {
-      console.warn('Token sanitization failed', e);
     }
 
     this.innerHTML = `
