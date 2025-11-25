@@ -98,6 +98,18 @@ class IncidentElement extends HTMLElement {
 
   connectedCallback() {
     console.log("incidentElement connected");
+
+    // Flush the previous values in local storage.
+    try {
+      const t = localStorage.getItem('oauth_access_token');
+      if (t === 'undefined' || t === 'null' || (typeof t === 'string' && t.trim() === '')) {
+        console.log('Clearing invalid oauth_access_token from localStorage');
+        localStorage.removeItem('oauth_access_token');
+      }
+    } catch (e) {
+      console.warn('Token sanitization failed', e);
+    }
+
     this.innerHTML = `
       <style>
       .incident-entry {
@@ -512,18 +524,28 @@ class IncidentElement extends HTMLElement {
     // cached probe result
     const cached = this.editAccessCache.has(idNum) ? this.editAccessCache.get(idNum) : null;
 
-    // roles fetched and normalized earlier
-    const roles = (this._cachedUserRoles || []).map(r => ({
+   // Defensive normalization of cached roles
+    const normalizedRoles = (this._cachedUserRoles || []).map(r => ({
       id: Number(r?.id || r?.roleId || 0),
-      key: (r?.roleKey || r?.key || '').toString().toLowerCase(),
-      name: (r?.name || r?.roleName || r?.label || '').toString().toLowerCase().trim()
+      key: String(r?.roleKey || r?.key || '').toLowerCase().trim(),
+      name: String(r?.name || r?.roleName || r?.label || '').toLowerCase().trim()
     }));
 
+    // Allowed role names must be lowercase and trimmed
     const allowedRoleNames = new Set(['test team 2']);
-    const apiRoleAllow = (this._cachedUserRoles || []).some(r => allowedRoleNames.has(r.name));
-    const hasToken = Boolean(getAccessToken());
 
-    const canEdit = hasToken && apiRoleAllow; 
+    // Check roles safely
+    const apiRoleAllow = normalizedRoles.some(r => {
+      const nm = (r && r.name) ? r.name.toString().toLowerCase().trim() : '';
+      return nm && allowedRoleNames.has(nm);
+    });
+
+    // Strict token presence check: reject 'undefined', 'null', empty strings
+    const rawToken = getAccessToken();
+    const hasToken = typeof rawToken === 'string' && rawToken !== 'undefined' && rawToken !== 'null' && rawToken.trim() !== '';
+
+    // Only allow edit when a valid token exists AND the API reports an allowed role
+    const canEdit = Boolean(hasToken && apiRoleAllow);
 
     const editChunk = canEdit
       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
