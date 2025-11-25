@@ -150,7 +150,7 @@ dmsToDecimal(dms) {
 
       container.innerHTML = '';
 
-      const map = L.map(this.querySelector("#map"),{ 
+      this._map = L.map(this.querySelector("#map"),{ 
         zoomControl: false,
         fullscreenControl: true, 
         fullscreenControlOptions: {
@@ -159,11 +159,11 @@ dmsToDecimal(dms) {
       }).setView([56.1304, -100.3468], 3);
       
       // Add zoom control back at top-left
-      L.control.zoom({ position: 'topleft' }).addTo(map);
+      L.control.zoom({ position: 'topleft' }).addTo(this._map);
       
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
-      }).addTo(map);
+      }).addTo(this._map);
 
       const res = await fetch("/o/c/incidents");
       const data = await res.json();
@@ -215,7 +215,7 @@ dmsToDecimal(dms) {
         const label = item.incident || "Unnamed";
         const url = `/web/incident-reporting-tool/edit-incident?objectEntryId=${item.id}`;
 
-        const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(color) }).addTo(map);
+        const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(color) }).addTo(this._map);
         marker.bindPopup(`<a href="${url}" target="_self">${label}</a>`);
         bounds.push([lat, lng]);
       });
