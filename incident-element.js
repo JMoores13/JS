@@ -263,6 +263,7 @@ class IncidentElement extends HTMLElement {
 
   async refreshAuthState() {
     const token = getAccessToken();
+    console.log('refreshAuthState: token present?', Boolean(token));
 
     if (!token) {
       this._cachedUserRoles = [];
@@ -352,8 +353,6 @@ class IncidentElement extends HTMLElement {
 
     window.location.href = authorizeUrl;
   }
-
-
 
   renderList() {
     const start = this.currentPage * this.pageSize;
