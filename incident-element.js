@@ -85,7 +85,6 @@ class IncidentElement extends HTMLElement {
   }
 
   connectedCallback() {
-    const flag = 0
     console.log("incidentElement connected");
     this.innerHTML = `
       <style>
@@ -218,7 +217,6 @@ class IncidentElement extends HTMLElement {
         if (!getAccessToken()) {
           this._cachedUserRoles = [];
           await this.loadDataAnonymous();
-          flag += 1
           return;
         }
 
