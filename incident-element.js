@@ -114,24 +114,72 @@ class IncidentElement extends HTMLElement {
     console.log("incidentElement connected");
 
     try {
+      // If callback/authorize pages, skip
       const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback') ||
                             window.location.pathname.includes('/o/oauth2/authorize');
 
+      // Clear only in-progress marker on normal loads; do NOT remove pkce_verifier/state
       const justCompleted = sessionStorage.getItem('oauth_completed');
       if (justCompleted) {
-        console.log('Auth just completed; preserving oauth_access_token and clearing oauth_completed flag');
-        try { sessionStorage.removeItem('oauth_completed'); } catch (e) {}
+        sessionStorage.removeItem('oauth_completed');
       } else if (!isCallbackPath) {
-        console.log('Clearing only oauth_in_progress on page load (preserving pkce_verifier/state)');
-        try {
-          sessionStorage.removeItem('oauth_in_progress');
-          // DO NOT remove localStorage pkce_verifier or pkce_state here
-        } catch (e) {
-          console.warn('Failed to clear auth storage', e);
-        }
+        sessionStorage.removeItem('oauth_in_progress');
+      }
+
+      // If an auth flow is already in progress recently, defer further action
+      const inProgress = sessionStorage.getItem('oauth_in_progress');
+      if (inProgress && (Date.now() - Number(inProgress) < 30 * 1000)) {
+        console.log('Auth already in progress; deferring PKCE start');
+      } else {
+        // Probe Liferay to see if the user already has a Liferay session
+        // If they do, and we don't have a valid token for that user, start PKCE.
+        (async () => {
+          try {
+            // Lightweight probe: will be 200 if user is signed in to Liferay
+            const probe = await fetch('/o/headless-admin-user/v1.0/my-user-account', { credentials: 'same-origin', headers: { Accept: 'application/json' }});
+            if (probe.status === 200) {
+              const me = await probe.json();
+              const currentUserId = String(me.id || me.userId || '');
+              const token = getAccessToken();
+              const owner = localStorage.getItem('oauth_owner');
+
+              // If we have a token and owner matches, nothing to do
+              if (token && owner === currentUserId) {
+                console.log('Liferay session present and token owner matches; no PKCE start needed');
+                return;
+              }
+
+              // If token exists but owner differs, clear it (do not auto-redirect)
+              if (token && owner && owner !== currentUserId) {
+                console.warn('Token owner mismatch; clearing token so this tab can re-auth for current Liferay user');
+                try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+                try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+                // remain anonymous now; next step will start PKCE automatically for the signed-in Liferay user
+              }
+
+              // If no token (or we just cleared it), start PKCE to obtain a token for the current Liferay user
+              if (!getAccessToken()) {
+                // mark in-progress and start PKCE
+                sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+                console.log('Liferay session detected; starting PKCE to obtain token for current user');
+                // Use the global helper to ensure correct binding
+                if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
+                else {
+                  const el = document.querySelector('incident-element');
+                  if (el && typeof el.startPkceAuth === 'function') el.startPkceAuth();
+                }
+              }
+            } else {
+              // Not signed in to Liferay — remain anonymous and do not redirect
+              console.log('No Liferay session detected (probe returned', probe.status, '); staying anonymous');
+            }
+          } catch (e) {
+            console.warn('Liferay session probe failed', e);
+          }
+        })();
       }
     } catch (e) {
-      console.warn('Auto-clear guard failed', e);
+      console.warn('Auto-start guard failed', e);
     }
 
     this.innerHTML = `
