@@ -277,12 +277,35 @@ class IncidentElement extends HTMLElement {
       this.refreshAuthState();
     });
 
-    // listen for storage changes
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'oauth_access_token') {
-        this.refreshAuthState();
+   // Cross-tab auth propagation: respond to token changes and broadcast events
+    try {
+      if ('BroadcastChannel' in window) {
+        this._bc = new BroadcastChannel('incident-auth');
+        this._bc.onmessage = (ev) => {
+          if (ev.data === 'signed-in' || ev.data === 'signed-out') {
+            console.log('BroadcastChannel auth event', ev.data);
+            // Clear per-tab user id on sign-out so next refresh will re-auth
+            if (ev.data === 'signed-out') {
+              try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
+            }
+            this.refreshAuthState();
+          }
+        };
+      } else {
+        window.addEventListener('storage', (e) => {
+          if (e.key === 'oauth_access_token') {
+            console.log('storage event oauth_access_token changed');
+            // If token was removed by another tab, clear per-tab user id
+            if (!localStorage.getItem('oauth_access_token')) {
+              try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
+            }
+            this.refreshAuthState();
+          }
+        });
       }
-    });
+    } catch (e) {
+      console.warn('Cross-tab auth propagation setup failed', e);
+    }
 
     /*async function loadUserRoles() {
       const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
@@ -350,39 +373,97 @@ class IncidentElement extends HTMLElement {
   }
 
   async refreshAuthState() {
+    // Local token sanity check
     const token = getAccessToken();
     console.log('refreshAuthState: token present?', Boolean(token));
 
+    // If no token, go anonymous and attempt to load anonymous data
     if (!token) {
       this._cachedUserRoles = [];
       await this.loadDataAnonymous();
       return;
     }
 
-      try {
+    // Remote validation: call protected endpoint to get current user
+    try {
       const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
+
       if (!res.ok) {
+        console.warn('refreshAuthState: remote token validation failed', res.status);
+
+        // If server rejects token, clear and reauth
         if (res.status === 401) {
-          localStorage.removeItem('oauth_access_token');
+          try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+          try {
+            if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
+            else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
+          } catch (e) {}
           this._cachedUserRoles = [];
-          await this.loadDataAnonymous();
+          if (!sessionStorage.getItem('oauth_in_progress')) {
+            sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+            if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
+          } else {
+            await this.loadDataAnonymous();
+          }
           return;
         }
+
         this._cachedUserRoles = [];
-      } else {
-        const me = await res.json();
-        const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
-        this._cachedUserRoles = raw.map(r => ({
-          id: Number(r.id || r.roleId || 0),
-          name: String(r.name || r.roleName || r.label || '').toLowerCase().trim(),
-          key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
-        }));
+        await this.loadDataAnonymous();
+        return;
       }
+
+      // Token accepted; parse user
+      const me = await res.json();
+      const currentUserId = String(me.id || me.userId || me.id || '');
+
+      // Compare to per-tab expected user id
+      const tabUserId = sessionStorage.getItem('active_user_id');
+
+      if (tabUserId && tabUserId !== currentUserId) {
+        // Different user is signed in than this tab expects -> clear and reauth
+        console.warn('refreshAuthState: different user detected (tab expects %s, server returned %s). Clearing token and restarting PKCE.', tabUserId, currentUserId);
+        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+        try {
+          if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
+          else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
+        } catch (e) {}
+        this._cachedUserRoles = [];
+        if (!sessionStorage.getItem('oauth_in_progress')) {
+          sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+          if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
+        } else {
+          await this.loadDataAnonymous();
+        }
+        return;
+      }
+
+      // If we reach here, token is valid and either tab had no user id or it matches
+      // Save the user id for this tab so future loads can detect changes
+      try { sessionStorage.setItem('active_user_id', currentUserId); } catch (e) {}
+
+      // Normalize roles and continue
+      const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
+      this._cachedUserRoles = raw.map(r => ({
+        id: Number(r.id || r.roleId || 0),
+        name: String(r.name || r.roleName || r.label || '').toLowerCase().trim(),
+        key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
+      }));
+
+      // notify other tabs that we are signed in
+      try {
+        if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
+        else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
+      } catch (e) {}
+
     } catch (e) {
-      console.warn('role fetch failed', e);
+      console.warn('refreshAuthState: remote validation error', e);
       this._cachedUserRoles = [];
+      await this.loadDataAnonymous();
+      return;
     }
 
+    // Load incidents now that we have validated roles
     await this.loadData();
   }
 
