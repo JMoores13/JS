@@ -250,6 +250,7 @@ class IncidentElement extends HTMLElement {
       console.warn('loadData: incidents fetch failed', res.status);
       // handle 401 by starting auth
       if (res.status === 401) {
+        console.log('loadData: 401 and no token -> initiating PKCE authorize');
         // If no token, initiate PKCE 
         if (!getAccessToken()) {
           await this.startPkceAuth();
