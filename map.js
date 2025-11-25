@@ -13,15 +13,56 @@ connectedCallback() {
         border-radius: 0px; 
       }
       .leaflet-container { font: inherit; }
+      .map-toolbar { margin: 0.5em 0; display: flex; gap: 0.5em; align-items: center; }
     </style>
+    <div class="map-toolbar">
+      <label><strong>Status:</strong></label>
+      <select id="status-filter">
+        <option value="">All</option>
+        <option value="active">Active</option>
+        <option value="inprogress">In Progress</option>
+        <option value="inactive">Inactive</option>
+        <option value="open">Open</option>
+      </select>
+    </div>
     <div id="map">Loading map...</div>
   `;
+  this.statusFilterSet = this.parseFilter(this.getAttribute('status-filter'));
+
+  const sel = this.querySelector('#status-filter');
+  if(sel){
+    sel.value = [...IncidentMapElement(this.statusFilterSet ?? [])][0] ?? '';
+    sel.addEventListener('change', () => {
+      const v = sel.value;
+      if (v) this.setAttribute('status-filter', v);
+      else this.removeAttribute('status-filter');
+    });
+  }
 
   this.loadLeaflet().then(() => {
+    this.isReady = true;
     requestAnimationFrame(() => this.renderMap());
   });
 }
   static fullscreenLoaded = false;
+  static get observedAttributes() { return ['status-filter']; }
+
+  attributeChangedCallback(name, oldVal, newVal) {
+    if (name === 'status-filter'){
+      this.statusFilterSet = this.parseFilter(newVal);
+      if (this.isReady) this.renderMap();
+    }
+  }
+  parseFilter(val){
+    if(!val) return null;
+    return new Set(
+      String(val)
+        .toLowerCase()
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+    );
+  }
   
     async loadLeaflet() {
       if (!window.L) {
@@ -93,6 +134,11 @@ dmsToDecimal(dms) {
 }
 
   async renderMap() {
+
+    // Reset map container to avoid duplicate maps on re-render
+    const container = this.querySelector('#map');
+    container.innerHTML = ''; // clear any previous content
+
     const map = L.map(this.querySelector("#map"),{ 
         zoomControl: false,
         fullscreenControl: true, 
@@ -106,12 +152,14 @@ dmsToDecimal(dms) {
     
      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
-  }).addTo(map);
+    }).addTo(map);
 
     try {
       const res = await fetch("/o/c/incidents");
       const data = await res.json();
       const bounds = [];
+
+      const filterSet = this.statusFilterSet;
 
       data.items.forEach((item) => {
         let lat = this.dmsToDecimal(item.latitudeDMS);
@@ -134,6 +182,9 @@ dmsToDecimal(dms) {
         if (isNaN(lat) || isNaN(lng)) return;
 
         const statusKey = item.statusOfIncident?.key?.toLowerCase();
+
+        if (filterSet && (!statusKey || !filterSet.has(statusKey))) return;
+        
         let color = "blue"; // default
         
         switch (statusKey) {
