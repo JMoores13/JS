@@ -193,6 +193,11 @@ class IncidentElement extends HTMLElement {
      // initial auth/data check
     this.refreshAuthState();
 
+    // inside connectedCallback after this.refreshAuthState();
+    window.addEventListener('oauth:token', () => {
+      this.refreshAuthState();
+    });
+
     // listen for storage changes
     window.addEventListener('storage', (e) => {
       if (e.key === 'oauth_access_token') {
