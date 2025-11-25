@@ -46,6 +46,16 @@ function getAccessToken() {
   return localStorage.getItem('oauth_access_token');
 }
 
+window.startPkceAuth = () => {
+  const el = document.querySelector('incident-element');
+  if (el && typeof el.startPkceAuth === 'function') {
+    console.log('window.startPkceAuth: invoking element.startPkceAuth()');
+    el.startPkceAuth();
+  } else {
+    console.warn('window.startPkceAuth: incident-element not found or method missing');
+  }
+}
+
 async function apiFetch(url, opts = {}) {
   const token = getAccessToken();
   const headers = new Headers(opts.headers || {});
@@ -194,6 +204,30 @@ class IncidentElement extends HTMLElement {
 
      // initial auth/data check
     this.refreshAuthState();
+
+    try{
+      const isCallbackPath= window.location.pathname.includes('/web/incident-reporting-tool/callback');
+      const isAuthorizePath = window.location.pathname.includes('/o/oauth2/authorize');
+      const tokenPresent = Boolean(getAccessToken());
+      const inProgress = sessionStorage.getItem('oauth_in_progress');
+
+      console.log('auto-auth check:', {isCallbackPath, isAuthorizePath, tokenPresent, inProgress});
+
+      if(!tokenPresent && !isCallbackPath && !isAuthorizePath && !inProgress){
+        sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+        if (typeof window.startPkceAuth === 'function') {
+          window.startPkceAuth();
+        }else{
+          if(typeof this.startPkceAuth === 'function') {
+            this.startPkceAuth();
+          }else{
+            console.warn('Auto PKCE: startpkceauth not found.')
+          }
+        }
+      }
+    } catch(err) {
+      console.warn('Auto PKCE check failed', err);
+    }
 
     // inside connectedCallback after this.refreshAuthState();
     window.addEventListener('oauth:token', () => {
