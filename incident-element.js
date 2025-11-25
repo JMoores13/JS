@@ -99,20 +99,31 @@ class IncidentElement extends HTMLElement {
   connectedCallback() {
     console.log("incidentElement connected");
 
-    // Force-clear auth storage on page load to ensure a fresh PKCE flow
-    const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback') ||
-                          window.location.pathname.includes('/o/oauth2/authorize');
-    if (!isCallbackPath) {
-      console.log('Clearing auth storage on page load to force fresh PKCE flow');
+    // Force-clear auth storage on page load only when NOT coming back from a successful callback
       try {
-        localStorage.removeItem('oauth_access_token');
-        localStorage.removeItem('pkce_verifier');
-        localStorage.removeItem('pkce_state');
-        sessionStorage.removeItem('oauth_in_progress');
+        const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback') ||
+                              window.location.pathname.includes('/o/oauth2/authorize');
+
+        // If the callback just completed, skip clearing once and remove the marker
+        const justCompleted = sessionStorage.getItem('oauth_completed');
+        if (justCompleted) {
+          console.log('Auth just completed; preserving oauth_access_token and clearing oauth_completed flag');
+          try { sessionStorage.removeItem('oauth_completed'); } catch (e) {}
+        } else if (!isCallbackPath) {
+          // Normal case: clear stale PKCE artifacts but do NOT clear after a fresh callback
+          console.log('Clearing stale PKCE artifacts on page load');
+          try {
+            // remove only PKCE artifacts and in-progress flag; do NOT remove oauth_access_token here
+            localStorage.removeItem('pkce_verifier');
+            localStorage.removeItem('pkce_state');
+            sessionStorage.removeItem('oauth_in_progress');
+          } catch (e) {
+            console.warn('Failed to clear auth storage', e);
+          }
+        }
       } catch (e) {
-        console.warn('Failed to clear auth storage', e);
+        console.warn('Auto-clear guard failed', e);
       }
-    }
 
     this.innerHTML = `
       <style>
