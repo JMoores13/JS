@@ -1,8 +1,8 @@
 // OAUTH2 vars to be used later
 const OAUTH2 = {
   clientId: 'id-ccd397bf-6b1b-23d5-d6dd-63dc49c2c96a',
-  authorizeUrl: '/o/oauth2/authorize',
-  tokenUrl: '/o/oauth2/token',
+  authorizeUrl: 'http://localhost:8080/o/oauth2/authorize',
+  tokenUrl: 'http://localhost:8080/o/oauth2/token',
   redirectUri: 'http://localhost:8080/web/incident-reporting-tool/callback',
   scopes: [
     'Liferay.Headless.Admin.User.everything', 
