@@ -31,7 +31,7 @@ connectedCallback() {
 
   const sel = this.querySelector('#status-filter');
   if(sel){
-    sel.value = [...IncidentMapElement(this.statusFilterSet ?? [])][0] ?? '';
+    sel.value = [...(this.statusFilterSet ?? [])][0] ?? '';
     sel.addEventListener('change', () => {
       const v = sel.value;
       if (v) this.setAttribute('status-filter', v);
@@ -137,24 +137,29 @@ dmsToDecimal(dms) {
 
     // Reset map container to avoid duplicate maps on re-render
     const container = this.querySelector('#map');
+    if (!container) return;
     container.innerHTML = ''; // clear any previous content
 
-    const map = L.map(this.querySelector("#map"),{ 
+    try {
+      if (!window.L) throw new Error('Leaflet not loaded');
+
+      container.innerHTML = '';
+
+      const map = L.map(this.querySelector("#map"),{ 
         zoomControl: false,
         fullscreenControl: true, 
         fullscreenControlOptions: {
           position: 'topright'
         }
-     }).setView([56.1304, -100.3468], 3);
-    
-     // Add zoom control back at top-left
-     L.control.zoom({ position: 'topleft' }).addTo(map);
-    
-     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
-    }).addTo(map);
+      }).setView([56.1304, -100.3468], 3);
+      
+      // Add zoom control back at top-left
+      L.control.zoom({ position: 'topleft' }).addTo(map);
+      
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
+      }).addTo(map);
 
-    try {
       const res = await fetch("/o/c/incidents");
       const data = await res.json();
       const bounds = [];
@@ -184,7 +189,7 @@ dmsToDecimal(dms) {
         const statusKey = item.statusOfIncident?.key?.toLowerCase();
 
         if (filterSet && (!statusKey || !filterSet.has(statusKey))) return;
-        
+
         let color = "blue"; // default
         
         switch (statusKey) {
