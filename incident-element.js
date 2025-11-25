@@ -155,10 +155,13 @@ class IncidentElement extends HTMLElement {
 
             console.log('Exchanging code for token at', OAUTH2.tokenUrl);
 
+            // Replace your token fetch call with these options
             const tokenRes = await fetch(OAUTH2.tokenUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-              body
+              body,
+              mode: 'cors',            // allow cross-origin response if server permits
+              credentials: 'include'   // include cookies if server expects session cookies
             });
 
             if (!tokenRes.ok) {
