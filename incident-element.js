@@ -48,7 +48,7 @@ function getAccessToken() {
     if (!t) return null;
     const trimmed = String(t).trim();
     if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return null;
-
+    // If tokens are JWTs, require dot-separated structure; otherwise require reasonable length
     if (trimmed.includes('.') && trimmed.split('.').length === 3) return trimmed;
     if (trimmed.length > 20) return trimmed;
     return null;
@@ -112,7 +112,6 @@ class IncidentElement extends HTMLElement {
 
   connectedCallback() {
     console.log("incidentElement connected");
-
     try {
       // If callback/authorize pages, skip
       const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback') ||
@@ -131,11 +130,10 @@ class IncidentElement extends HTMLElement {
       if (inProgress && (Date.now() - Number(inProgress) < 30 * 1000)) {
         console.log('Auth already in progress; deferring PKCE start');
       } else {
-        // Probe Liferay to see if the user already has a Liferay session
+        // Probe Liferay to see if the user already has a Liferay session.
         // If they do, and we don't have a valid token for that user, start PKCE.
         (async () => {
           try {
-            // Lightweight probe: will be 200 if user is signed in to Liferay
             const probe = await fetch('/o/headless-admin-user/v1.0/my-user-account', { credentials: 'same-origin', headers: { Accept: 'application/json' }});
             if (probe.status === 200) {
               const me = await probe.json();
@@ -154,15 +152,12 @@ class IncidentElement extends HTMLElement {
                 console.warn('Token owner mismatch; clearing token so this tab can re-auth for current Liferay user');
                 try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
                 try { localStorage.removeItem('oauth_owner'); } catch (e) {}
-                // remain anonymous now; next step will start PKCE automatically for the signed-in Liferay user
               }
 
               // If no token (or we just cleared it), start PKCE to obtain a token for the current Liferay user
               if (!getAccessToken()) {
-                // mark in-progress and start PKCE
                 sessionStorage.setItem('oauth_in_progress', String(Date.now()));
                 console.log('Liferay session detected; starting PKCE to obtain token for current user');
-                // Use the global helper to ensure correct binding
                 if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
                 else {
                   const el = document.querySelector('incident-element');
@@ -170,7 +165,6 @@ class IncidentElement extends HTMLElement {
                 }
               }
             } else {
-              // Not signed in to Liferay — remain anonymous and do not redirect
               console.log('No Liferay session detected (probe returned', probe.status, '); staying anonymous');
             }
           } catch (e) {
@@ -437,90 +431,60 @@ class IncidentElement extends HTMLElement {
   }
 
   async refreshAuthState() {
-    // Local token sanity check
     const token = getAccessToken();
-    // Prevent immediate reauth storms: if an auth flow is already in progress, wait a bit
+
+    // Respect in-progress flows: if another tab started auth recently, show anonymous until it completes
     const inProgress = sessionStorage.getItem('oauth_in_progress');
     if (inProgress) {
       const started = Number(inProgress) || 0;
-      // if started less than 30s ago, avoid starting another PKCE flow
       if (Date.now() - started < 30 * 1000) {
-        console.log('refreshAuthState: auth already in progress; deferring refresh');
-        // show anonymous view while waiting
+        console.log('refreshAuthState: auth in progress elsewhere; showing anonymous view');
         this._cachedUserRoles = [];
         await this.loadDataAnonymous();
         return;
       } else {
-        // stale flag — remove it and continue
         sessionStorage.removeItem('oauth_in_progress');
       }
     }
-    console.log('refreshAuthState: token present?', Boolean(token));
 
-    // If no token, go anonymous and attempt to load anonymous data
+    // No token -> anonymous
     if (!token) {
       this._cachedUserRoles = [];
       await this.loadDataAnonymous();
       return;
     }
 
-    // Remote validation: call protected endpoint to get current user
+    // Validate token by calling protected endpoint
     try {
       const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
 
       if (!res.ok) {
-        console.warn('refreshAuthState: remote token validation failed', res.status);
-
-        // If server rejects token, clear and reauth
-        if (res.status === 401) {
-          try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
-          try {
-            if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
-            else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
-          } catch (e) {}
-          this._cachedUserRoles = [];
-          if (!sessionStorage.getItem('oauth_in_progress')) {
-            sessionStorage.setItem('oauth_in_progress', String(Date.now()));
-            if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
-          } else {
-            await this.loadDataAnonymous();
-          }
-          return;
-        }
-
+        console.warn('refreshAuthState: token rejected by server', res.status);
+        // Clear token and owner, but DO NOT auto-start PKCE; let user sign in explicitly or rely on Liferay session probe
+        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+        try { localStorage.removeItem('oauth_owner'); } catch (e) {}
         this._cachedUserRoles = [];
         await this.loadDataAnonymous();
         return;
       }
 
-      // Token accepted; parse user
+      // Token accepted; get user id and roles
       const me = await res.json();
-      const currentUserId = String(me.id || me.userId || me.id || '');
+      const currentUserId = String(me.id || me.userId || '');
 
-      // Compare to per-tab expected user id
-      const tabUserId = sessionStorage.getItem('active_user_id');
-
-      if (tabUserId && tabUserId !== currentUserId) {
-        // Different user is signed in than this tab expects -> clear and reauth
-        console.warn('refreshAuthState: different user detected (tab expects %s, server returned %s). Clearing token and restarting PKCE.', tabUserId, currentUserId);
+      // If we have a stored owner and it differs, clear token and remain anonymous
+      const storedOwner = localStorage.getItem('oauth_owner');
+      if (storedOwner && storedOwner !== currentUserId) {
+        console.warn('refreshAuthState: token owner mismatch; clearing token and staying anonymous', storedOwner, currentUserId);
         try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
-        try {
-          if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
-          else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
-        } catch (e) {}
+        try { localStorage.removeItem('oauth_owner'); } catch (e) {}
         this._cachedUserRoles = [];
-        if (!sessionStorage.getItem('oauth_in_progress')) {
-          sessionStorage.setItem('oauth_in_progress', String(Date.now()));
-          if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
-        } else {
-          await this.loadDataAnonymous();
-        }
+        await this.loadDataAnonymous();
         return;
       }
 
-      // If we reach here, token is valid and either tab had no user id or it matches
-      // Save the user id for this tab so future loads can detect changes
-      try { sessionStorage.setItem('active_user_id', currentUserId); } catch (e) {}
+      // Save owner if not present
+      try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
 
       // Normalize roles and continue
       const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
@@ -530,14 +494,8 @@ class IncidentElement extends HTMLElement {
         key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
       }));
 
-      // notify other tabs that we are signed in
-      try {
-        if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
-        else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
-      } catch (e) {}
-
     } catch (e) {
-      console.warn('refreshAuthState: remote validation error', e);
+      console.warn('refreshAuthState: validation error', e);
       this._cachedUserRoles = [];
       await this.loadDataAnonymous();
       return;
@@ -576,15 +534,22 @@ class IncidentElement extends HTMLElement {
   }
 
   async startPkceAuth() {
-    clearAuthState();
-    console.log('startPkceAuth invoked');
+    // Do not clear pkce_verifier here;
+    console.log('startPkceAuth invoked - generating PKCE values');
+
     const verifier = generateCodeVerifier();
     const challenge = await generateCodeChallenge(verifier);
     const state = crypto.randomUUID();
 
-    // Save verifier and state
-    localStorage.setItem('pkce_verifier', verifier);
-    localStorage.setItem('pkce_state', state);
+    // Save verifier and state to localStorage so callback can read them
+    try {
+      localStorage.setItem('pkce_verifier', verifier);
+      localStorage.setItem('pkce_state', state);
+      console.log('Saved pkce_verifier and pkce_state to localStorage');
+    } catch (e) {
+      console.error('Failed to save PKCE verifier/state to localStorage', e);
+      throw e;
+    }
 
     // Build authorize URL parameters
     const params = new URLSearchParams({
