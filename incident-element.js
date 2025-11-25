@@ -250,16 +250,18 @@ class IncidentElement extends HTMLElement {
       console.warn('loadData: incidents fetch failed', res.status);
       // handle 401 by starting auth
       if (res.status === 401) {
-        console.log('loadData: 401 and no token -> initiating PKCE authorize');
-        // If no token, initiate PKCE 
-        if (!getAccessToken()) {
+        // avoid redirect loop: only start auth if no token and not already in progress
+        if (!getAccessToken() && !sessionStorage.getItem('oauth_in_progress')) {
+          sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+          console.log('No token and 401 received — initiating PKCE authorize');
           await this.startPkceAuth();
           return;
         }
-        // If token existed but still 401, fall back to anonymous view
+        // if token existed but still 401, fall back to anonymous
         await this.loadDataAnonymous();
         return;
       }
+
     this.querySelector("#incident-list").innerHTML = "<p>Error loading incidents</p>";
     return;
   }
@@ -359,6 +361,7 @@ class IncidentElement extends HTMLElement {
 
     const authorizeUrl = `${OAUTH2.authorizeUrl}?${params.toString()}`;
     console.log('Authorize URL:', authorizeUrl);
+    sessionStorage.setItem('oauth_in_progress', '1');
 
     window.location.href = authorizeUrl;
   }
