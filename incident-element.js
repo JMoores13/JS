@@ -85,6 +85,7 @@ class IncidentElement extends HTMLElement {
   }
 
   connectedCallback() {
+    const flag = 0
     console.log("incidentElement connected");
     this.innerHTML = `
       <style>
@@ -190,6 +191,16 @@ class IncidentElement extends HTMLElement {
       this.renderList();
     });
 
+     // initial auth/data check
+    this.refreshAuthState();
+
+    // listen for storage changes
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'oauth_access_token') {
+        this.refreshAuthState();
+      }
+    });
+
     async function loadUserRoles() {
       const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
       if (!res.ok) return [];
@@ -207,6 +218,7 @@ class IncidentElement extends HTMLElement {
         if (!getAccessToken()) {
           this._cachedUserRoles = [];
           await this.loadDataAnonymous();
+          flag += 1
           return;
         }
 
@@ -244,6 +256,40 @@ class IncidentElement extends HTMLElement {
     this.renderList();
   }
 
+  async refreshAuthState() {
+    const token = getAccessToken();
+
+    if (!token) {
+      this._cachedUserRoles = [];
+      await this.loadDataAnonymous();
+      return;
+    }
+
+    try {
+      const roles = await (async () => {
+        const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
+        if (!res.ok) return [];
+        const me = await res.json();
+        const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
+        return raw.map(r => ({
+          id: Number(r.id || r.roleId || 0),
+          name: String(r.name || r.roleName || r.label || '').toLowerCase().trim(),
+          key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
+        }));
+      })();
+      this._cachedUserRoles = roles;
+    } catch (e) {
+      console.warn('role fetch failed', e);
+      this._cachedUserRoles = [];
+    }
+
+    try {
+      await this.loadData();
+    } catch (e) {
+      console.warn('loadData failed:', e);
+    }
+  }
+
   parseDate(val) {
     if (!val) return null;
     const d = new Date(val);
@@ -267,7 +313,6 @@ class IncidentElement extends HTMLElement {
       this.querySelector("#incident-list").innerHTML = "<p>No incidents available.</p>";
       return;
     }
-
     const data = await res.json();
     this.allItems = data.items || [];
     this.renderList();
@@ -350,60 +395,6 @@ class IncidentElement extends HTMLElement {
     `;
 
     this.querySelector("#incident-list").innerHTML = listHTML;
-
-    /*const permissionProbes = visibleItems.map(async (item) => {
-      const idNum = Number(item.id);
-
-      if (this.editAccessCache.has(idNum) && this.editAccessCache.get(idNum) !== null) return;
-
-      if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, null);
-
-      try {
-        const res = await apiFetch(`/o/c/incidents/${idNum}`);
-
-        if (!res.ok) {
-          if (!this.editAccessCache.has(idNum)) this.editAccessCache.set(idNum, null); 
-          console.warn('incidentElement: Permission fetch failed for', idNum, 'Status:', res.status);
-          return;
-        }
-
-        const entry = await res.json();
-        const actions = entry.actions || {};
-
-        // check common edit-like action keys
-        const editKeys = ['update','edit','modify','patch','put','UPDATE','EDIT','update_entry','edit_entry'];
-
-        const canEdit = editKeys.some(k => Object.prototype.hasOwnProperty.call(actions, k));
-        this.editAccessCache.set(idNum, !!canEdit);
-
-        console.log(`incidentElement: PermissionProbe id=${idNum} -> canEdit=${canEdit} actions=${Object.keys(actions).join(',')}`);
-                
-    
-      } catch (err) {
-        console.warn('incidentElement: per-item probe failed for', idNum, err);
-        this.editAccessCache.set(idNum, false); 
-      }
-    });*/
-
-    // Wait for all permission checks to finish
-    /*Promise.all(permissionProbes).then(() => {
-      
-      let needsReRender = false;
-      visibleItems.forEach(item => {
-         const idNum = Number(item.id);
-         const canEdit = this.editAccessCache.get(idNum) === true;
-         if (canEdit) {
-            // Check if the link is missing because of the initial render
-            if (!this.querySelector(`.incident-entry[data-id="${idNum}"] .edit-link`)) {
-              needsReRender = true;
-            }
-         }
-      });
-
-      if (needsReRender) {
-         this.renderList();
-      }
-    });*/
 
     // After rendering, hydrate comments for expanded incidents
     this.expandedIds.forEach((id) => {
