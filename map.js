@@ -140,6 +140,11 @@ dmsToDecimal(dms) {
     if (!container) return;
     container.innerHTML = ''; // clear any previous content
 
+    if (this._map) {
+      this._map.remove();
+      this._map = null;
+    }
+
     try {
       if (!window.L) throw new Error('Leaflet not loaded');
 
