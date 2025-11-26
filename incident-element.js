@@ -127,7 +127,7 @@ class IncidentElement extends HTMLElement {
     });
 
     // Only run callback exchange when we are actually on the callback URL with a code
-    try {
+  
       const callbackPath = new URL(OAUTH2.redirectUri).pathname;
       const isCallbackPath = location.pathname === callbackPath;
       const urlParams = new URL(window.location.href).searchParams;
