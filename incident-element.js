@@ -213,10 +213,7 @@ class IncidentElement extends HTMLElement {
             return;
           }
 
-          // Store token and mark completed
-          // after successful token exchange and you have uid
-          localStorage.setItem(`oauth_access_token_${uid}`, tokenJson.access_token);
-          localStorage.setItem('oauth_owner', uid);
+          let uid = null;
 
           // Try to fetch /my-user-account to set oauth_owner (best effort)
           try {
@@ -228,10 +225,6 @@ class IncidentElement extends HTMLElement {
             if (meRes.ok) {
               const me = await meRes.json();
               const uid = String(me.id || me.userId || '');
-              if (uid) {
-                localStorage.setItem('oauth_owner', uid);
-                console.log('Stored oauth_owner', uid);
-              }
             } else {
               console.warn('/my-user-account returned', meRes.status);
             }
@@ -241,12 +234,18 @@ class IncidentElement extends HTMLElement {
 
           // If probe non-200 or owner mismatch:
           try {
-            localStorage.removeItem('oauth_access_token');
-            // remove any owner-keyed tokens too
-            const storedOwner = localStorage.getItem('oauth_owner');
-            if (storedOwner) localStorage.removeItem(`oauth_access_token_${storedOwner}`);
-            localStorage.removeItem('oauth_owner');
-          } catch (e) {}
+            if (uid) {
+              localStorage.setItem('oauth_access_token_${uid}', tokenJson.access_token);
+              localStorage.setItem('ouath_owner', uid);
+              console.log('Stored token for owner', uid);
+            } else {
+              localStorage.setItem('oauth_access_token', tokenJson.access_token);
+              localStorage.removeItem('oauth_owner');
+              console.log('Stored token without owner (uid unknown)');
+            }
+          } catch (e) {
+            console.warn('Failed to persist token', e);
+          }
 
           // Cleanup PKCE artifacts and in-progress marker
           try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
@@ -259,38 +258,9 @@ class IncidentElement extends HTMLElement {
           // Notify other tabs and return to app
           // Cross-tab propagation (replace existing block)
           try {
-            if ('BroadcastChannel' in window) {
-              this._bc = new BroadcastChannel('incident-auth');
-              this._bc.onmessage = (ev) => {
-                console.log('BroadcastChannel auth event', ev.data);
-                if (ev.data === 'signed-out') {
-                  try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
-                }
-                // Always re-evaluate auth state when other tabs change it
-                if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
-                this._uiUpdateTimer = setTimeout(() => {
-                  this._uiUpdateTimer = null;
-                  this.refreshAuthState();
-                }, 250);
-              };
-            } else {
-              window.addEventListener('storage', (e) => {
-                if (e.key === 'oauth_access_token' || e.key === 'oauth_owner') {
-                  console.log('storage event oauth_access_token/oauth_owner changed', e.key);
-                  if (!localStorage.getItem('oauth_access_token')) {
-                    try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
-                  }
-                  if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
-                  this._uiUpdateTimer = setTimeout(() => {
-                    this._uiUpdateTimer = null;
-                    this.refreshAuthState();
-                  }, 250);
-                }
-              });
-            }
-          } catch (e) {
-            console.warn('Cross-tab auth propagation setup failed', e);
-          }
+            if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
+            else localStorage.setItem('oauth_access_token', localStorage.getItem(`oauth_access_token_${uid}`) || localStorage.getItem('oauth_access_token') || '');
+          } catch (e) {}
 
           console.log('Callback exchange complete; returning to app');
           // Use replaceState already set; navigate to app root to ensure normal app load
@@ -587,8 +557,10 @@ class IncidentElement extends HTMLElement {
 
       const authorizeUrl = `${OAUTH2.authorizeUrl}?${params.toString()}`;
       console.log('Authorize URL:', authorizeUrl);
-      sessionStorage.setItem('oauth_in_progress', '1');
-        console.log('PKCE saved before redirect', {
+      // mark in-progress with timestamp
+      sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+      
+      console.log('PKCE saved before redirect', {
         origin: location.origin,
         pkce_verifier: !!localStorage.getItem('pkce_verifier'),
         pkce_state: !!localStorage.getItem('pkce_state'),
