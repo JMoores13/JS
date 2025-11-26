@@ -133,11 +133,11 @@ class IncidentElement extends HTMLElement {
       const urlParams = new URL(window.location.href).searchParams;
       const hasCode = urlParams.has('code');
 
-      // Probe-only flow:
+     // Probe with safe fallback
       (async () => {
         try {
           const probeRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-            credentials: 'same-origin',
+            credentials: 'include',
             headers: { Accept: 'application/json' }
           });
 
@@ -151,24 +151,59 @@ class IncidentElement extends HTMLElement {
 
             if (token && owner === currentUserId) {
               console.log('Liferay session present and token owner matches; no PKCE start needed');
-            } else {
-              if (token && owner && owner !== currentUserId) {
-                console.warn('Token owner mismatch; clearing token so this tab can re-auth for current Liferay user');
-                try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
-                try { localStorage.removeItem('oauth_owner'); } catch (e) {}
-              }
-              console.log('Liferay session detected; starting PKCE to obtain token for current user');
-              sessionStorage.setItem('oauth_in_progress', String(Date.now()));
-              if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
+              return;
             }
+
+            if (token && owner && owner !== currentUserId) {
+              console.warn('Token owner mismatch; clearing token for re-auth');
+              try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+              try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+            }
+
+            console.log('Liferay session detected; starting PKCE');
+            sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+            if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
             return;
           }
 
-          // Non-200 probe: log body for debugging and continue anonymous
-          const probeText = await probeRes.text().catch(() => '<no-body>');
-          console.log('No Liferay session detected (probe returned', probeRes.status, '):', probeText);
+          // Non-200 probe: fallback to PKCE start after safety checks
+          console.log('Probe returned', probeRes.status, '- falling back to client-initiated PKCE start');
+
+          // Safety: avoid starting PKCE repeatedly in a short window
+          const inProgress = Number(sessionStorage.getItem('oauth_in_progress') || '0');
+          const now = Date.now();
+          const IN_PROGRESS_TIMEOUT = 30 * 1000; // 30s
+
+          if (now - inProgress < IN_PROGRESS_TIMEOUT) {
+            console.log('PKCE already in progress recently; skipping fallback start');
+            return;
+          }
+
+          // Clear stale PKCE artifacts to avoid mismatches
+          try {
+            localStorage.removeItem('pkce_verifier');
+            localStorage.removeItem('pkce_state');
+          } catch (e) {}
+
+          sessionStorage.setItem('oauth_in_progress', String(now));
+          console.log('Fallback: initiating PKCE from client');
+          if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
         } catch (e) {
-          console.warn('Liferay session probe failed', e);
+          console.warn('Liferay session probe failed; falling back to client-initiated PKCE', e);
+
+          // On fetch error, same safe fallback behavior
+          const inProgress = Number(sessionStorage.getItem('oauth_in_progress') || '0');
+          const now = Date.now();
+          const IN_PROGRESS_TIMEOUT = 30 * 1000;
+          if (now - inProgress < IN_PROGRESS_TIMEOUT) return;
+
+          try {
+            localStorage.removeItem('pkce_verifier');
+            localStorage.removeItem('pkce_state');
+          } catch (err) {}
+
+          sessionStorage.setItem('oauth_in_progress', String(now));
+          if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
         }
       })();
 
@@ -382,40 +417,44 @@ class IncidentElement extends HTMLElement {
     // Do not clear pkce_verifier here; preserve until callback completes
     console.log('startPkceAuth invoked - generating PKCE values');
 
-    const verifier = generateCodeVerifier();
-    const challenge = await generateCodeChallenge(verifier);
-    const state = crypto.randomUUID();
-
     try {
+      const verifier = generateCodeVerifier();
+      const challenge = await generateCodeChallenge(verifier);
+      const state = crypto.randomUUID();
+
       localStorage.setItem('pkce_verifier', verifier);
       localStorage.setItem('pkce_state', state);
       console.log('Saved pkce_verifier and pkce_state to localStorage');
+
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: OAUTH2.clientId,
+        redirect_uri: OAUTH2.redirectUri,
+        scope: OAUTH2.scopes,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+        state
+      });
+
+      const authorizeUrl = `${OAUTH2.authorizeUrl}?${params.toString()}`;
+      console.log('Authorize URL:', authorizeUrl);
+      sessionStorage.setItem('oauth_in_progress', '1');
+        console.log('PKCE saved before redirect', {
+        origin: location.origin,
+        pkce_verifier: !!localStorage.getItem('pkce_verifier'),
+        pkce_state: !!localStorage.getItem('pkce_state'),
+        authorizeUrl
+      });
+
+      sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+
+      window.location.href = authorizeUrl;
+
     } catch (e) {
       console.error('Failed to save PKCE verifier/state to localStorage', e);
-      throw e;
+      try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+      throw err;
     }
-
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: OAUTH2.clientId,
-      redirect_uri: OAUTH2.redirectUri,
-      scope: OAUTH2.scopes,
-      code_challenge: challenge,
-      code_challenge_method: 'S256',
-      state
-    });
-
-    const authorizeUrl = `${OAUTH2.authorizeUrl}?${params.toString()}`;
-    console.log('Authorize URL:', authorizeUrl);
-    sessionStorage.setItem('oauth_in_progress', '1');
-      console.log('PKCE saved before redirect', {
-      origin: location.origin,
-      pkce_verifier: !!localStorage.getItem('pkce_verifier'),
-      pkce_state: !!localStorage.getItem('pkce_state'),
-      authorizeUrl
-    });
-
-    window.location.href = authorizeUrl;
   }
 
   renderList() {
