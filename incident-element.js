@@ -133,31 +133,40 @@ class IncidentElement extends HTMLElement {
       const urlParams = new URL(window.location.href).searchParams;
       const hasCode = urlParams.has('code');
 
-      // Replace any unconditional auto-start with this probe-only flow:
+      // Probe-only flow:
       (async () => {
         try {
-          await fetch('/o/headless-admin-user/v1.0/my-user-account', { 
-            credentials: 'include', 
-            headers: { 
-              Accept: 'application/json' 
-            }});
+          const probeRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' }
+          });
 
-          if (probe.status === 200) {
-            const me = await probe.json();
+          console.log('Liferay probe status', probeRes.status);
+
+          if (probeRes.status === 200) {
+            const me = await probeRes.json();
             const currentUserId = String(me.id || me.userId || '');
             const token = getAccessToken();
             const owner = localStorage.getItem('oauth_owner');
 
-            if (!token || owner !== currentUserId) {
-              console.log('Liferay session present and token missing/owner mismatch; starting PKCE');
-              sessionStorage.setItem('oauth_in_progress', String(Date.now()));
-              window.startPkceAuth();
-            } else {
+            if (token && owner === currentUserId) {
               console.log('Liferay session present and token owner matches; no PKCE start needed');
+            } else {
+              if (token && owner && owner !== currentUserId) {
+                console.warn('Token owner mismatch; clearing token so this tab can re-auth for current Liferay user');
+                try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+                try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+              }
+              console.log('Liferay session detected; starting PKCE to obtain token for current user');
+              sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+              if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
             }
-          } else {
-            console.log('No Liferay session detected (probe returned', probe.status, '); staying anonymous');
+            return;
           }
+
+          // Non-200 probe: log body for debugging and continue anonymous
+          const probeText = await probeRes.text().catch(() => '<no-body>');
+          console.log('No Liferay session detected (probe returned', probeRes.status, '):', probeText);
         } catch (e) {
           console.warn('Liferay session probe failed', e);
         }
