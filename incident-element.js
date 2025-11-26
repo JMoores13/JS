@@ -139,10 +139,10 @@ class IncidentElement extends HTMLElement {
       pkce_verifier: !!localStorage.getItem('pkce_verifier'),
       pkce_state: !!localStorage.getItem('pkce_state')
     });
+    const callbackPath = new URL(OAUTH2.redirectUri).pathname;
 
     // Only run callback exchange when we are actually on the callback URL with a code
       (async () => {
-      const callbackPath = new URL(OAUTH2.redirectUri).pathname;
       if (location.pathname === callbackPath && new URL(location.href).searchParams.has('code')) {
         console.log('refreshAuthState: on callback path with code — skipping PKCE start');
         // show anonymous view until callback handler completes
