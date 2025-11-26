@@ -25,6 +25,12 @@ function generateCodeVerifier() {
 // Helper to remove the local storage variables (used for explicit sign-out)
 function clearAuthState() {
   try {
+    const owner = localStorage.getItem('oauth_owner');
+    if (owner) localStorage.removeItem(`oauth_access_token_${owner}`);
+    localStorage.removeItem('oauth_access_token');
+    localStorage.removeItem('oauth_owner');
+  } catch (e) {}
+  try {
     localStorage.removeItem('oauth_access_token');
     localStorage.removeItem('oauth_owner');
   } catch (e) {  }
@@ -38,7 +44,6 @@ function clearAuthState() {
     sessionStorage.removeItem('oauth_completed_at');
     sessionStorage.removeItem('oauth_in_progress');
   } catch (e) {}
-
   try {
     if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
     else localStorage.setItem('oauth_access_token', '');
@@ -61,14 +66,20 @@ async function generateCodeChallenge(verifier) {
 // Strict token read: return null for garbage values
 function getAccessToken() {
   try {
+    const owner = localStorage.getItem('oauth_owner') || '';
+    if (!owner) return null;
+
     const t = localStorage.getItem('oauth_access_token');
     if (!t) return null;
+
     const trimmed = String(t).trim();
     if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return null;
+
     // If tokens are JWTs, require dot-separated structure; otherwise require reasonable length
     if (trimmed.includes('.') && trimmed.split('.').length === 3) return trimmed;
     if (trimmed.length > 20) return trimmed;
     return null;
+
   } catch (e) {
     console.warn('getAccessToken: failed to read token', e);
     return null;
@@ -203,8 +214,9 @@ class IncidentElement extends HTMLElement {
           }
 
           // Store token and mark completed
-          localStorage.setItem('oauth_access_token', tokenJson.access_token);
-          sessionStorage.setItem('oauth_completed', '1');
+          // after successful token exchange and you have uid
+          localStorage.setItem(`oauth_access_token_${uid}`, tokenJson.access_token);
+          localStorage.setItem('oauth_owner', uid);
 
           // Try to fetch /my-user-account to set oauth_owner (best effort)
           try {
@@ -226,6 +238,15 @@ class IncidentElement extends HTMLElement {
           } catch (e) {
             console.warn('Failed to fetch /my-user-account after token exchange', e);
           }
+
+          // If probe non-200 or owner mismatch:
+          try {
+            localStorage.removeItem('oauth_access_token');
+            // remove any owner-keyed tokens too
+            const storedOwner = localStorage.getItem('oauth_owner');
+            if (storedOwner) localStorage.removeItem(`oauth_access_token_${storedOwner}`);
+            localStorage.removeItem('oauth_owner');
+          } catch (e) {}
 
           // Cleanup PKCE artifacts and in-progress marker
           try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
@@ -410,6 +431,15 @@ class IncidentElement extends HTMLElement {
 
   async refreshAuthState() {
     const token = getAccessToken();
+
+    const storedOwner = localStorage.getItem('oauth_owner');
+    if (storedOwner) {
+      const tokenForOwner = localStorage.getItem(`oauth_access_token_${storedOwner}`) || localStorage.getItem('oauth_access_token');
+      if (!tokenForOwner) {
+        // owner present but no token for owner -> clear owner
+        localStorage.removeItem('oauth_owner');
+      }
+    }
 
     // Respect in-progress flows
     const inProgress = Number(sessionStorage.getItem('oauth_in_progress') || '0');
