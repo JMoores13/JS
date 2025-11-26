@@ -134,6 +134,37 @@ class IncidentElement extends HTMLElement {
       const hasCode = urlParams.has('code');
 
      // Probe with safe fallback
+     if (isCallbackPath && hasCode){
+      console.log('On callback page with code; skipping probe/fallback start');
+      // After storing tokenJson.access_token and oauth_owner
+      localStorage.setItem('oauth_access_token', tokenJson.access_token);
+      sessionStorage.setItem('oauth_completed', '1');
+
+      try {
+        // Remove PKCE artifacts
+        localStorage.removeItem('pkce_verifier');
+        localStorage.removeItem('pkce_state');
+      } catch (e) {}
+
+      try {
+        // Clear in-progress and mark completed so fallback won't restart immediately
+        sessionStorage.removeItem('oauth_in_progress');
+        sessionStorage.setItem('oauth_completed_at', String(Date.now()));
+      } catch (e) {}
+
+      // Remove code/state from address bar so reloads or other logic don't re-trigger callback
+      try {
+        history.replaceState(null, '', '/web/incident-reporting-tool/');
+      } catch (e) {}
+
+      // Notify other tabs
+      if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
+      else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
+
+      // Finally navigate back to app 
+      window.location.href = '/web/incident-reporting-tool/';
+      
+     }else{
       (async () => {
         try {
           const probeRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
@@ -206,6 +237,7 @@ class IncidentElement extends HTMLElement {
           if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
         }
       })();
+    }
 
     this.innerHTML = `
       <style>
