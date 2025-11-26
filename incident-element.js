@@ -78,10 +78,6 @@ function getAccessToken() {
   }
 }
 
-
-
-
-
 // Global helper to call element.startPkceAuth safely
 window.startPkceAuth = () => {
   const el = document.querySelector('incident-element');
@@ -145,7 +141,7 @@ class IncidentElement extends HTMLElement {
     });
 
     // Only run callback exchange when we are actually on the callback URL with a code
-  
+      (async () => {
       const callbackPath = new URL(OAUTH2.redirectUri).pathname;
       if (location.pathname === callbackPath && new URL(location.href).searchParams.has('code')) {
         console.log('refreshAuthState: on callback path with code — skipping PKCE start');
@@ -153,7 +149,7 @@ class IncidentElement extends HTMLElement {
         this._cachedUserRoles = [];
         await this.loadDataAnonymous();
         return;
-      }
+      }});
       const isCallbackPath = location.pathname === callbackPath;
       const urlParams = new URL(window.location.href).searchParams;
       const hasCode = urlParams.has('code');
