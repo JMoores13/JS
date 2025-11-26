@@ -134,125 +134,114 @@ class IncidentElement extends HTMLElement {
       const hasCode = urlParams.has('code');
 
      // Probe with safe fallback
-     if (isCallbackPath && hasCode){
-      console.log('On callback page with code; skipping probe/fallback start');
-      // After storing tokenJson.access_token and oauth_owner
-      localStorage.setItem('oauth_access_token', tokenJson.access_token);
-      sessionStorage.setItem('oauth_completed', '1');
-
-      try {
-        localStorage.removeItem('pkce_verifier');
-        localStorage.removeItem('pkce_state');
-      } catch (e) {}
-
-      try {
-        // Clear in-progress and mark completed so fallback won't restart immediately
-        sessionStorage.removeItem('oauth_in_progress');
-        sessionStorage.setItem('oauth_completed_at', String(Date.now()));
-      } catch (e) {}
-
-      try {
-        // Remove code/state from address bar so reloads don't re-trigger callback
-        history.replaceState(null, '', '/web/incident-reporting-tool/');
-      } catch (e) { console.warn('replaceState failed', e); }
-
-      // Notify other tabs
-      if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
-      else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
-
-      // Finally navigate back to app (optional if replaceState already shows app)
-      window.location.href = '/web/incident-reporting-tool/';
-
-     }else{
+    if (isCallbackPath && hasCode) {
       (async () => {
         try {
-          const probeRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-            credentials: 'include',
-            headers: { Accept: 'application/json' }
+          console.log('PKCE callback: starting exchange (callback path detected)');
+
+          const url = new URL(location.href);
+          const code = url.searchParams.get('code');
+          const state = url.searchParams.get('state');
+
+          const verifier = localStorage.getItem('pkce_verifier');
+          const savedState = localStorage.getItem('pkce_state');
+
+          console.log('Callback params', { code: !!code, state: !!state, verifier: !!verifier, savedState: !!savedState });
+
+          if (!code || !state || !verifier || !savedState || state !== savedState) {
+            console.error('Callback: missing code/state or state mismatch; aborting exchange', { code: !!code, state, savedState, verifier: !!verifier });
+            // Clean up stale PKCE artifacts and return to app anonymously
+            try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
+            try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+            history.replaceState(null, '', '/web/incident-reporting-tool/');
+            return;
+          }
+
+          const body = new URLSearchParams({
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: OAUTH2.redirectUri,
+            client_id: OAUTH2.clientId,
+            code_verifier: verifier
+          }).toString();
+
+          console.log('Callback: exchanging code for token at', OAUTH2.tokenUrl);
+
+          const tokenRes = await fetch(OAUTH2.tokenUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+            body,
+            mode: 'cors'
           });
 
-          console.log('Liferay probe status', probeRes.status);
-
-          if (probeRes.status === 200) {
-            const me = await probeRes.json();
-            const currentUserId = String(me.id || me.userId || '');
-            const token = getAccessToken();
-            const owner = localStorage.getItem('oauth_owner');
-
-            if (token && owner === currentUserId) {
-              console.log('Liferay session present and token owner matches; no PKCE start needed');
-              return;
-            }
-
-            // Respect recent successful exchange
-            const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || '0');
-            const now = Date.now();
-            const COMPLETED_GRACE_MS = 10 * 1000; // 10s grace
-
-            if (now - completedAt < COMPLETED_GRACE_MS) {
-              console.log('Recent successful exchange detected; skipping fallback start');
-              return;
-            }
-
-            // Also ensure we are not on callback path
-            if (location.pathname === new URL(OAUTH2.redirectUri).pathname && new URL(location.href).searchParams.has('code')) {
-              console.log('On callback path; skipping fallback start');
-              return;
-            }
-
-            if (token && owner && owner !== currentUserId) {
-              console.warn('Token owner mismatch; clearing token for re-auth');
-              try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
-              try { localStorage.removeItem('oauth_owner'); } catch (e) {}
-            }
-
-            console.log('Liferay session detected; starting PKCE');
-            sessionStorage.setItem('oauth_in_progress', String(Date.now()));
-            if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
+          if (!tokenRes.ok) {
+            const txt = await tokenRes.text().catch(() => '<no-body>');
+            console.error('Token endpoint returned', tokenRes.status, txt);
+            // Clean up and return to app
+            try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+            history.replaceState(null, '', '/web/incident-reporting-tool/');
             return;
           }
 
-          // Non-200 probe: fallback to PKCE start after safety checks
-          console.log('Probe returned', probeRes.status, '- falling back to client-initiated PKCE start');
-
-          // Safety: avoid starting PKCE repeatedly in a short window
-          const inProgress = Number(sessionStorage.getItem('oauth_in_progress') || '0');
-          const now = Date.now();
-          const IN_PROGRESS_TIMEOUT = 30 * 1000; // 30s
-
-          if (now - inProgress < IN_PROGRESS_TIMEOUT) {
-            console.log('PKCE already in progress recently; skipping fallback start');
+          const tokenJson = await tokenRes.json();
+          if (!tokenJson || !tokenJson.access_token) {
+            console.error('Token response missing access_token', tokenJson);
+            try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+            history.replaceState(null, '', '/web/incident-reporting-tool/');
             return;
           }
 
-          // Clear stale PKCE artifacts to avoid mismatches
+          // Store token and mark completed
+          localStorage.setItem('oauth_access_token', tokenJson.access_token);
+          sessionStorage.setItem('oauth_completed', '1');
+
+          // Try to fetch /my-user-account to set oauth_owner (best effort)
           try {
-            localStorage.removeItem('pkce_verifier');
-            localStorage.removeItem('pkce_state');
-          } catch (e) {}
+            const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+              method: 'GET',
+              headers: { Authorization: `Bearer ${tokenJson.access_token}`, Accept: 'application/json' },
+              credentials: 'same-origin'
+            });
+            if (meRes.ok) {
+              const me = await meRes.json();
+              const uid = String(me.id || me.userId || '');
+              if (uid) {
+                localStorage.setItem('oauth_owner', uid);
+                console.log('Stored oauth_owner', uid);
+              }
+            } else {
+              console.warn('/my-user-account returned', meRes.status);
+            }
+          } catch (e) {
+            console.warn('Failed to fetch /my-user-account after token exchange', e);
+          }
 
-          sessionStorage.setItem('oauth_in_progress', String(now));
-          console.log('Fallback: initiating PKCE from client');
-          if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
-        } catch (e) {
-          console.warn('Liferay session probe failed; falling back to client-initiated PKCE', e);
+          // Cleanup PKCE artifacts and in-progress marker
+          try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
+          try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+          try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) {}
 
-          // On fetch error, same safe fallback behavior
-          const inProgress = Number(sessionStorage.getItem('oauth_in_progress') || '0');
-          const now = Date.now();
-          const IN_PROGRESS_TIMEOUT = 30 * 1000;
-          if (now - inProgress < IN_PROGRESS_TIMEOUT) return;
+          // Remove code/state from URL so reloads won't re-trigger callback
+          try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) { console.warn('replaceState failed', e); }
 
+          // Notify other tabs and return to app
           try {
-            localStorage.removeItem('pkce_verifier');
-            localStorage.removeItem('pkce_state');
-          } catch (err) {}
+            if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
+            else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
+          } catch (e) { /* ignore */ }
 
-          sessionStorage.setItem('oauth_in_progress', String(now));
-          if (typeof window.startPkceAuth === 'function') window.startPkceAuth();
+          console.log('Callback exchange complete; returning to app');
+          // Use replaceState already set; navigate to app root to ensure normal app load
+          window.location.href = '/web/incident-reporting-tool/';
+        } catch (err) {
+          console.error('Callback exchange error', err);
+          try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+          try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
         }
       })();
     }
+
+
 
     this.innerHTML = `
       <style>
