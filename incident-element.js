@@ -27,11 +27,22 @@ function clearAuthState() {
   try {
     localStorage.removeItem('oauth_access_token');
     localStorage.removeItem('oauth_owner');
-  } catch (e) { /* ignore */ }
+  } catch (e) {  }
   try {
     localStorage.removeItem('pkce_verifier');
     localStorage.removeItem('pkce_state');
-  } catch (e) { /* ignore */ }
+  } catch (e) {  }
+
+  try {
+    sessionStorage.removeItem('oauth_completed');
+    sessionStorage.removeItem('oauth_completed_at');
+    sessionStorage.removeItem('oauth_in_progress');
+  } catch (e) {}
+
+  try {
+    if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
+    else localStorage.setItem('oauth_access_token', '');
+  }catch (e) {}
 }
 
 // Generate a code challenge from the verifier
@@ -225,10 +236,40 @@ class IncidentElement extends HTMLElement {
           try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) { console.warn('replaceState failed', e); }
 
           // Notify other tabs and return to app
+          // Cross-tab propagation (replace existing block)
           try {
-            if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
-            else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
-          } catch (e) { /* ignore */ }
+            if ('BroadcastChannel' in window) {
+              this._bc = new BroadcastChannel('incident-auth');
+              this._bc.onmessage = (ev) => {
+                console.log('BroadcastChannel auth event', ev.data);
+                if (ev.data === 'signed-out') {
+                  try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
+                }
+                // Always re-evaluate auth state when other tabs change it
+                if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+                this._uiUpdateTimer = setTimeout(() => {
+                  this._uiUpdateTimer = null;
+                  this.refreshAuthState();
+                }, 250);
+              };
+            } else {
+              window.addEventListener('storage', (e) => {
+                if (e.key === 'oauth_access_token' || e.key === 'oauth_owner') {
+                  console.log('storage event oauth_access_token/oauth_owner changed', e.key);
+                  if (!localStorage.getItem('oauth_access_token')) {
+                    try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
+                  }
+                  if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+                  this._uiUpdateTimer = setTimeout(() => {
+                    this._uiUpdateTimer = null;
+                    this.refreshAuthState();
+                  }, 250);
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('Cross-tab auth propagation setup failed', e);
+          }
 
           console.log('Callback exchange complete; returning to app');
           // Use replaceState already set; navigate to app root to ensure normal app load
@@ -297,6 +338,16 @@ class IncidentElement extends HTMLElement {
       }, 250);
     });
 
+    window.addEventListener('focus', () => {
+      // small debounce
+      if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+      this._uiUpdateTimer = setTimeout(() => {
+        this._uiUpdateTimer = null;
+        console.log('Window focused — rechecking auth state');
+        this.refreshAuthState();
+      }, 200);
+    });
+
     // Cross-tab propagation
     try {
       if ('BroadcastChannel' in window) {
@@ -361,7 +412,7 @@ class IncidentElement extends HTMLElement {
     const token = getAccessToken();
 
     // Respect in-progress flows
-    const inProgress = sessionStorage.getItem('oauth_in_progress');
+    const inProgress = Number(sessionStorage.getItem('oauth_in_progress') || '0');
     if (inProgress) {
       const started = Number(inProgress) || 0;
       if (Date.now() - started < 30 * 1000) {
@@ -375,10 +426,42 @@ class IncidentElement extends HTMLElement {
     }
 
     if (!token) {
+      const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || '0');
+      const now = Date.now();
+      const COMPLETED_GRACE_MS = 10 * 1000; // short grace window
+
+      if (now - completedAt < COMPLETED_GRACE_MS) {
+        console.log('refreshAuthState: recent completion detected; showing anonymous view for now');
+        this._cachedUserRoles = [];
+        await this.loadDataAnonymous();
+        return;
+      }
+
+      // Not completed recently and no token — start PKCE (but avoid storms)
+      if (!sessionStorage.getItem('oauth_in_progress')) {
+        console.log('refreshAuthState: no token and no recent completion — initiating PKCE');
+        try { sessionStorage.setItem('oauth_in_progress', String(Date.now())); } catch (e) {}
+        await this.startPkceAuth();
+        return;
+      }
+
+      // If in_progress exists but stale, clear and start
+      const inProgTs = Number(sessionStorage.getItem('oauth_in_progress') || '0');
+      if (Date.now() - inProgTs > 60 * 1000) {
+        console.log('refreshAuthState: stale oauth_in_progress detected; clearing and initiating PKCE');
+        sessionStorage.removeItem('oauth_in_progress');
+        try { sessionStorage.setItem('oauth_in_progress', String(Date.now())); } catch (e) {}
+        await this.startPkceAuth();
+        return;
+      }
+
+      // otherwise show anonymous
       this._cachedUserRoles = [];
       await this.loadDataAnonymous();
       return;
     }
+
+
 
     try {
       const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
