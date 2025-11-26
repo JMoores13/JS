@@ -465,13 +465,6 @@ class IncidentElement extends HTMLElement {
       throw e;
     }
 
-    console.log('PKCE saved before redirect', {
-      origin: location.origin,
-      pkce_verifier: !!localStorage.getItem('pkce_verifier'),
-      pkce_state: !!localStorage.getItem('pkce_state'),
-      authorizeUrl
-    });
-
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: OAUTH2.clientId,
@@ -485,6 +478,12 @@ class IncidentElement extends HTMLElement {
     const authorizeUrl = `${OAUTH2.authorizeUrl}?${params.toString()}`;
     console.log('Authorize URL:', authorizeUrl);
     sessionStorage.setItem('oauth_in_progress', '1');
+      console.log('PKCE saved before redirect', {
+      origin: location.origin,
+      pkce_verifier: !!localStorage.getItem('pkce_verifier'),
+      pkce_state: !!localStorage.getItem('pkce_state'),
+      authorizeUrl
+    });
 
     window.location.href = authorizeUrl;
   }
