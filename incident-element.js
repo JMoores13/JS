@@ -67,7 +67,15 @@ async function generateCodeChallenge(verifier) {
 function getAccessToken() {
   try {
     const owner = localStorage.getItem('oauth_owner') || '';
-    if (!owner) return null;
+    if (!owner) {
+      const t = localStorage.getItem('oauth_access_token');
+      if (!t) return null;
+      const trimmed = String(t).trim();
+      if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return null;
+      if (trimmed.includes('.') && trimmed.split('.').length === 3) return trimmed;
+      if (trimmed.length > 20) return trimmed;
+      return null;
+    }
 
     const t = localStorage.getItem('oauth_access_token');
     if (!t) return null;
@@ -157,6 +165,8 @@ class IncidentElement extends HTMLElement {
 
      // Probe with safe fallback
     if (isCallbackPath && hasCode) {
+      console.log('On callback page; skipping probe/fallback');
+    }else{
       (async () => {
         try {
           console.log('PKCE callback: starting exchange (callback path detected)');
@@ -224,7 +234,7 @@ class IncidentElement extends HTMLElement {
             });
             if (meRes.ok) {
               const me = await meRes.json();
-              const uid = String(me.id || me.userId || '');
+              const uid = String(me.id || me.userId || '') || null;
             } else {
               console.warn('/my-user-account returned', meRes.status);
             }
@@ -236,7 +246,7 @@ class IncidentElement extends HTMLElement {
           try {
             if (uid) {
               localStorage.setItem('oauth_access_token_${uid}', tokenJson.access_token);
-              localStorage.setItem('ouath_owner', uid);
+              localStorage.setItem('oauth_owner', uid);
               console.log('Stored token for owner', uid);
             } else {
               localStorage.setItem('oauth_access_token', tokenJson.access_token);
@@ -558,8 +568,7 @@ class IncidentElement extends HTMLElement {
       const authorizeUrl = `${OAUTH2.authorizeUrl}?${params.toString()}`;
       console.log('Authorize URL:', authorizeUrl);
       // mark in-progress with timestamp
-      sessionStorage.setItem('oauth_in_progress', String(Date.now()));
-      
+
       console.log('PKCE saved before redirect', {
         origin: location.origin,
         pkce_verifier: !!localStorage.getItem('pkce_verifier'),
