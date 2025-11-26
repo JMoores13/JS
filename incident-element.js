@@ -62,8 +62,8 @@ async function generateCodeChallenge(verifier) {
 function getAccessToken() {
   try {
     const owner = localStorage.getItem('oauth_owner') || '';
-    if (!owner) {
-      const t = localStorage.getItem('oauth_access_token');
+    if (owner) {
+      const t = localStorage.getItem(`oauth_access_token_${owner}`) || localStorage.getItem('oauth_access_token');
       if (!t) return null;
       const trimmed = String(t).trim();
       if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return null;
@@ -71,7 +71,7 @@ function getAccessToken() {
       if (trimmed.length > 20) return trimmed;
       return null;
     }
-    const t = localStorage.getItem(`oauth_access_token_${owner}`) || localStorage.getItem('oauth_access_token');
+    const t = localStorage.getItem('oauth_access_token');
     if (!t) return null;
     const trimmed = String(t).trim();
     if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return null;
@@ -153,116 +153,108 @@ class IncidentElement extends HTMLElement {
       const urlParams = new URL(window.location.href).searchParams;
       const hasCode = urlParams.has('code');
 
-     // Probe with safe fallback
-    if (isCallbackPath && hasCode) {
-      (async () => {
-        try {
-          console.log('PKCE callback: starting exchange (callback path detected)');
+      // Probe with safe fallback
+      if (isCallbackPath && hasCode) {
+        (async () => {
+          try {
+            // Prevent double-run: if we already completed recently, bail out
+            const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || '0');
+            if (Date.now() - completedAt < 5000) {
+              history.replaceState(null, '', '/web/incident-reporting-tool/');
+              return;
+            }
 
-          const url = new URL(location.href);
-          const code = url.searchParams.get('code');
-          const state = url.searchParams.get('state');
+            const url = new URL(location.href);
+            const code = url.searchParams.get('code');
+            const state = url.searchParams.get('state');
 
-          const verifier = localStorage.getItem('pkce_verifier');
-          const savedState = localStorage.getItem('pkce_state');
+            const verifier = localStorage.getItem('pkce_verifier');
+            const savedState = localStorage.getItem('pkce_state');
 
-          console.log('Callback params', { code: !!code, state: !!state, verifier: !!verifier, savedState: !!savedState });
+            if (!code || !state || !verifier || !savedState || state !== savedState) {
+              // cleanup and return to app
+              try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
+              try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+              history.replaceState(null, '', '/web/incident-reporting-tool/');
+              return;
+            }
 
-          if (!code || !state || !verifier || !savedState || state !== savedState) {
-            console.error('Callback: missing code/state or state mismatch; aborting exchange', { code: !!code, state, savedState, verifier: !!verifier });
-            // Clean up stale PKCE artifacts and return to app anonymously
+            const body = new URLSearchParams({
+              grant_type: 'authorization_code',
+              code,
+              redirect_uri: OAUTH2.redirectUri,
+              client_id: OAUTH2.clientId,
+              code_verifier: verifier
+            }).toString();
+
+            const tokenRes = await fetch(OAUTH2.tokenUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+              body,
+              mode: 'cors'
+            });
+
+            if (!tokenRes.ok) {
+              try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+              history.replaceState(null, '', '/web/incident-reporting-tool/');
+              return;
+            }
+
+            const tokenJson = await tokenRes.json();
+            if (!tokenJson || !tokenJson.access_token) {
+              try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+              history.replaceState(null, '', '/web/incident-reporting-tool/');
+              return;
+            }
+
+            // Best-effort: get uid using the new token
+            let uid = null;
+            try {
+              const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${tokenJson.access_token}`, Accept: 'application/json' },
+                credentials: 'same-origin'
+              });
+              if (meRes.ok) {
+                const me = await meRes.json();
+                uid = String(me.id || me.userId || '') || null;
+              }
+            } catch (e) { /* ignore */ }
+
+            // Persist token keyed by owner when possible
+            try {
+              if (uid) {
+                localStorage.setItem(`oauth_access_token_${uid}`, tokenJson.access_token);
+                localStorage.setItem('oauth_owner', uid);
+              } else {
+                localStorage.setItem('oauth_access_token', tokenJson.access_token);
+                localStorage.removeItem('oauth_owner');
+              }
+            } catch (e) { console.warn('persist token failed', e); }
+
+            // Cleanup PKCE artifacts and mark completion
             try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
             try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-            history.replaceState(null, '', '/web/incident-reporting-tool/');
-            return;
-          }
+            try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) {}
 
-          const body = new URLSearchParams({
-            grant_type: 'authorization_code',
-            code,
-            redirect_uri: OAUTH2.redirectUri,
-            client_id: OAUTH2.clientId,
-            code_verifier: verifier
-          }).toString();
+            // Remove code/state from URL and notify other tabs
+            try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
+            try {
+              if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
+              else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
+            } catch (e) {}
 
-          console.log('Callback: exchanging code for token at', OAUTH2.tokenUrl);
-
-          const tokenRes = await fetch(OAUTH2.tokenUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-            body,
-            mode: 'cors'
-          });
-
-          if (!tokenRes.ok) {
+            // Finally load app root (this will re-run connectedCallback but now token/owner exist)
+            window.location.href = '/web/incident-reporting-tool/';
+          } catch (err) {
+            console.error('Callback exchange error', err);
             try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-            history.replaceState(null, '', '/web/incident-reporting-tool/');
-            return;
+            try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
           }
-
-          const tokenJson = await tokenRes.json();
-          if (!tokenJson || !tokenJson.access_token) {
-            console.error('Token response missing access_token', tokenJson);
-            try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-            history.replaceState(null, '', '/web/incident-reporting-tool/');
-            return;
-          }
-
-          let uid = null;
-
-          // Try to fetch /my-user-account to set oauth_owner (best effort)
-          try {
-            const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-              method: 'GET',
-              headers: { Authorization: `Bearer ${tokenJson.access_token}`, Accept: 'application/json' },
-              credentials: 'same-origin'
-            });
-            if (meRes.ok) {
-              const me = await meRes.json();
-              const uid = String(me.id || me.userId || '') || null;
-            }
-          } catch (e) { }
-
-          // If probe non-200 or owner mismatch:
-          try {
-            if (uid) {
-              localStorage.setItem('oauth_access_token_${uid}', tokenJson.access_token);
-              localStorage.setItem('oauth_owner', uid);
-              console.log('Stored token for owner', uid);
-            } else {
-              localStorage.setItem('oauth_access_token', tokenJson.access_token);
-              localStorage.removeItem('oauth_owner');
-              console.log('Stored token without owner (uid unknown)');
-            }
-          } catch (e) {
-            console.warn('Failed to persist token', e);
-          }
-
-          // Cleanup PKCE artifacts and in-progress marker
-          try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
-          try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-          try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) {}
-
-          // Remove code/state from URL so reloads won't re-trigger callback
-          try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) { console.warn('replaceState failed', e); }
-
-          // Notify other tabs and return to app
-          // Cross-tab propagation (replace existing block)
-          try {
-            if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
-            else localStorage.setItem('oauth_access_token', localStorage.getItem(`oauth_access_token_${uid}`) || localStorage.getItem('oauth_access_token') || '');
-          } catch (e) {}
-
-          console.log('Callback exchange complete; returning to app');
-          // Use replaceState already set; navigate to app root to ensure normal app load
-          window.location.href = '/web/incident-reporting-tool/';
-        } catch (err) {
-          console.error('Callback exchange error', err);
-          try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-          try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
-        }
-      })();
-    }
+        })();
+        // stop further probe logic in this run
+        return;
+      }
 
 
 
