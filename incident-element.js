@@ -24,7 +24,6 @@ function generateCodeVerifier() {
 
 // Helper to remove the local storage variables (used for explicit sign-out)
 function clearAuthState() {
-  try {
     const owner = localStorage.getItem('oauth_owner');
     if (owner) {
       localStorage.removeItem(`oauth_access_token_${owner}`); 
@@ -39,7 +38,6 @@ function clearAuthState() {
   
     if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
     else localStorage.setItem('incident-auth-signal', `signed-out:${Date.now()}`);
-  }catch (e) { console.warn('clearAuthState failed', e); }
 }
 
 // Generate a code challenge from the verifier
@@ -55,12 +53,19 @@ async function generateCodeChallenge(verifier) {
   return base64;
 }
 
-// Strict token read: return null for garbage values
 function getAccessToken() {
   try {
     const owner = localStorage.getItem('oauth_owner');
-    const key = owner ? `oauth_access_token_${owner}` : 'oauth_access_token';
-    const t = localStorage.getItem(key);
+    if (owner) {
+      const t = localStorage.getItem(`oauth_access_token_${owner}`);
+      if (!t) return null;
+      const trimmed = String(t).trim();
+      if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return null;
+      if (trimmed.includes('.') && trimmed.split('.').length === 3) return trimmed;
+      if (trimmed.length > 20) return trimmed;
+      return null;
+    }
+    const t = localStorage.getItem('oauth_access_token');
     if (!t) return null;
     const trimmed = String(t).trim();
     if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return null;
@@ -72,6 +77,8 @@ function getAccessToken() {
     return null;
   }
 }
+
+
 
 
 
@@ -140,6 +147,13 @@ class IncidentElement extends HTMLElement {
     // Only run callback exchange when we are actually on the callback URL with a code
   
       const callbackPath = new URL(OAUTH2.redirectUri).pathname;
+      if (location.pathname === callbackPath && new URL(location.href).searchParams.has('code')) {
+        console.log('refreshAuthState: on callback path with code — skipping PKCE start');
+        // show anonymous view until callback handler completes
+        this._cachedUserRoles = [];
+        await this.loadDataAnonymous();
+        return;
+      }
       const isCallbackPath = location.pathname === callbackPath;
       const urlParams = new URL(window.location.href).searchParams;
       const hasCode = urlParams.has('code');
@@ -198,9 +212,7 @@ class IncidentElement extends HTMLElement {
               return;
             }
 
-            // Best-effort: get uid using the new token
-            const token = tokenJson.access_token;
-            let uid = null;
+             let uid = null;
             const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
               headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
               credentials: 'same-origin'
@@ -209,6 +221,8 @@ class IncidentElement extends HTMLElement {
               const me = await meRes.json();
               uid = String(me.id || me.userId || '');
             }
+
+            const token = tokenJson.access_token;
             if (uid) {
               localStorage.setItem(`oauth_access_token_${uid}`, token);
               localStorage.setItem('oauth_owner', uid);
@@ -216,6 +230,8 @@ class IncidentElement extends HTMLElement {
               localStorage.setItem('oauth_access_token', token);
               localStorage.removeItem('oauth_owner');
             }
+            // set completed timestamp immediately
+            sessionStorage.setItem('oauth_completed_at', String(Date.now()));
 
             // Cleanup PKCE artifacts and mark completion
             try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
@@ -223,24 +239,26 @@ class IncidentElement extends HTMLElement {
             try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) {}
 
             // Remove code/state from URL and notify other tabs
-            try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
-            try {
-              if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
-              else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
-            } catch (e) {}
+           try {
+              // remove code/state from URL
+              history.replaceState(null, '', '/web/incident-reporting-tool/');
+            } catch (e) { console.warn('replaceState failed', e); }
 
-            // after storing token and owner
-            history.replaceState(null, '', '/web/incident-reporting-tool/');
+            // mark completed BEFORE notifying other tabs
             sessionStorage.setItem('oauth_completed_at', String(Date.now()));
+
+            // notify other tabs
             if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
             else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
 
+            // Trigger a single refresh of auth state
             if (typeof window.refreshAuthState === 'function') {
               window.refreshAuthState();
             } else {
               // fallback: reload once
               window.location.reload();
             }
+
         } catch (e){ }});
         // stop further probe logic in this run
         return;
