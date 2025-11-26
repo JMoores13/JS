@@ -27,22 +27,19 @@ function clearAuthState() {
   try {
     const owner = localStorage.getItem('oauth_owner');
     if (owner) {
-      try { localStorage.removeItem(`oauth_access_token_${owner}`); } catch (e) {}
+      localStorage.removeItem(`oauth_access_token_${owner}`); 
     }
-    try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
-    try { localStorage.removeItem('oauth_owner'); } catch (e) {}
-  } catch (e) {}
+    localStorage.removeItem('oauth_access_token');
+    localStorage.removeItem('oauth_owner');
+    localStorage.removeItem('pkce_verifier'); 
+    localStorage.removeItem('pkce_state'); 
 
-  try { localStorage.removeItem('pkce_verifier'); } catch (e) {}
-  try { localStorage.removeItem('pkce_state'); } catch (e) {}
-
-  try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-  try { sessionStorage.removeItem('oauth_completed_at'); } catch (e) {}
-
-  try {
+    sessionStorage.removeItem('oauth_in_progress'); 
+    sessionStorage.removeItem('oauth_completed_at'); 
+  
     if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
     else localStorage.setItem('incident-auth-signal', `signed-out:${Date.now()}`);
-  }catch (e) {}
+  }catch (e) { console.warn('clearAuthState failed', e); }
 }
 
 // Generate a code challenge from the verifier
@@ -61,28 +58,22 @@ async function generateCodeChallenge(verifier) {
 // Strict token read: return null for garbage values
 function getAccessToken() {
   try {
-    const owner = localStorage.getItem('oauth_owner') || '';
-    if (owner) {
-      const t = localStorage.getItem(`oauth_access_token_${owner}`) || localStorage.getItem('oauth_access_token');
-      if (!t) return null;
-      const trimmed = String(t).trim();
-      if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return null;
-      if (trimmed.includes('.') && trimmed.split('.').length === 3) return trimmed;
-      if (trimmed.length > 20) return trimmed;
-      return null;
-    }
-    const t = localStorage.getItem('oauth_access_token');
+    const owner = localStorage.getItem('oauth_owner');
+    const key = owner ? `oauth_access_token_${owner}` : 'oauth_access_token';
+    const t = localStorage.getItem(key);
     if (!t) return null;
     const trimmed = String(t).trim();
-    if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return null;
+    if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return null;
     if (trimmed.includes('.') && trimmed.split('.').length === 3) return trimmed;
     if (trimmed.length > 20) return trimmed;
     return null;
   } catch (e) {
-    console.warn('getAccessToken: failed to read token', e);
+    console.warn('getAccessToken error', e);
     return null;
   }
 }
+
+
 
 // Global helper to call element.startPkceAuth safely
 window.startPkceAuth = () => {
@@ -208,29 +199,23 @@ class IncidentElement extends HTMLElement {
             }
 
             // Best-effort: get uid using the new token
+            const token = tokenJson.access_token;
             let uid = null;
-            try {
-              const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-                method: 'GET',
-                headers: { Authorization: `Bearer ${tokenJson.access_token}`, Accept: 'application/json' },
-                credentials: 'same-origin'
-              });
-              if (meRes.ok) {
-                const me = await meRes.json();
-                uid = String(me.id || me.userId || '') || null;
-              }
-            } catch (e) { /* ignore */ }
-
-            // Persist token keyed by owner when possible
-            try {
-              if (uid) {
-                localStorage.setItem(`oauth_access_token_${uid}`, tokenJson.access_token);
-                localStorage.setItem('oauth_owner', uid);
-              } else {
-                localStorage.setItem('oauth_access_token', tokenJson.access_token);
-                localStorage.removeItem('oauth_owner');
-              }
-            } catch (e) { console.warn('persist token failed', e); }
+            const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+              headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+              credentials: 'same-origin'
+            });
+            if (meRes.ok) {
+              const me = await meRes.json();
+              uid = String(me.id || me.userId || '');
+            }
+            if (uid) {
+              localStorage.setItem(`oauth_access_token_${uid}`, token);
+              localStorage.setItem('oauth_owner', uid);
+            } else {
+              localStorage.setItem('oauth_access_token', token);
+              localStorage.removeItem('oauth_owner');
+            }
 
             // Cleanup PKCE artifacts and mark completion
             try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
@@ -244,13 +229,18 @@ class IncidentElement extends HTMLElement {
               else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
             } catch (e) {}
 
-            // Finally load app root (this will re-run connectedCallback but now token/owner exist)
-            window.location.href = '/web/incident-reporting-tool/';
-          } catch (err) {
-            console.error('Callback exchange error', err);
-            try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-            try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
-          }
+            // after storing token and owner
+            history.replaceState(null, '', '/web/incident-reporting-tool/');
+            sessionStorage.setItem('oauth_completed_at', String(Date.now()));
+            if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
+            else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
+
+            if (typeof window.refreshAuthState === 'function') {
+              window.refreshAuthState();
+            } else {
+              // fallback: reload once
+              window.location.reload();
+            }
         })();
         // stop further probe logic in this run
         return;
