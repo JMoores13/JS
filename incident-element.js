@@ -117,6 +117,15 @@ class IncidentElement extends HTMLElement {
   connectedCallback() {
     console.log("incidentElement connected");
 
+    console.log('callback entry', {
+      href: location.href,
+      origin: location.origin,
+      code: !!(new URL(location.href).searchParams.get('code')),
+      state: !!(new URL(location.href).searchParams.get('state')),
+      pkce_verifier: !!localStorage.getItem('pkce_verifier'),
+      pkce_state: !!localStorage.getItem('pkce_state')
+    });
+
     // Only run callback exchange when we are actually on the callback URL with a code
     try {
       const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback');
@@ -455,6 +464,13 @@ class IncidentElement extends HTMLElement {
       console.error('Failed to save PKCE verifier/state to localStorage', e);
       throw e;
     }
+
+    console.log('PKCE saved before redirect', {
+      origin: location.origin,
+      pkce_verifier: !!localStorage.getItem('pkce_verifier'),
+      pkce_state: !!localStorage.getItem('pkce_state'),
+      authorizeUrl
+    });
 
     const params = new URLSearchParams({
       response_type: 'code',
