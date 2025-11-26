@@ -56,8 +56,10 @@ async function generateCodeChallenge(verifier) {
 function getAccessToken() {
   try {
     const owner = localStorage.getItem('oauth_owner');
+    const key = owner ? `oauth_access_token_${owner}` : 'oauth_access_token';
+    const t = localStorage.getItem(key);
+
     if (owner) {
-      const t = localStorage.getItem(`oauth_access_token_${owner}`);
       if (!t) return null;
       const trimmed = String(t).trim();
       if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return null;
@@ -65,7 +67,6 @@ function getAccessToken() {
       if (trimmed.length > 20) return trimmed;
       return null;
     }
-    const t = localStorage.getItem('oauth_access_token');
     if (!t) return null;
     const trimmed = String(t).trim();
     if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return null;
@@ -201,24 +202,17 @@ class IncidentElement extends HTMLElement {
               return;
             }
 
+            // inside connectedCallback when on callback path
             const tokenJson = await tokenRes.json();
-            if (!tokenJson || !tokenJson.access_token) {
-              try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-              history.replaceState(null, '', '/web/incident-reporting-tool/');
-              return;
-            }
-
-             let uid = null;
-            const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-              headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-              credentials: 'same-origin'
-            });
-            if (meRes.ok) {
-              const me = await meRes.json();
-              uid = String(me.id || me.userId || '');
-            }
-
             const token = tokenJson.access_token;
+            let uid = null;
+            try {
+              const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+                headers: { Authorization: `Bearer ${token}` }, credentials: 'same-origin'
+              });
+              if (meRes.ok) { uid = String((await meRes.json()).id || ''); }
+            } catch (e) { /* ignore */ }
+
             if (uid) {
               localStorage.setItem(`oauth_access_token_${uid}`, token);
               localStorage.setItem('oauth_owner', uid);
@@ -226,34 +220,20 @@ class IncidentElement extends HTMLElement {
               localStorage.setItem('oauth_access_token', token);
               localStorage.removeItem('oauth_owner');
             }
-            // set completed timestamp immediately
+
+            // mark completion BEFORE notifying
             sessionStorage.setItem('oauth_completed_at', String(Date.now()));
+            localStorage.removeItem('pkce_verifier');
+            localStorage.removeItem('pkce_state');
+            sessionStorage.removeItem('oauth_in_progress');
 
-            // Cleanup PKCE artifacts and mark completion
-            try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
-            try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-            try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) {}
-
-            // Remove code/state from URL and notify other tabs
-           try {
-              // remove code/state from URL
-              history.replaceState(null, '', '/web/incident-reporting-tool/');
-            } catch (e) { console.warn('replaceState failed', e); }
-
-            // mark completed BEFORE notifying other tabs
-            sessionStorage.setItem('oauth_completed_at', String(Date.now()));
-
-            // notify other tabs
+            // replace URL and refresh in-place
+            history.replaceState(null, '', '/web/incident-reporting-tool/');
             if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
             else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
 
-            // Trigger a single refresh of auth state
-            if (typeof window.refreshAuthState === 'function') {
-              window.refreshAuthState();
-            } else {
-              // fallback: reload once
-              window.location.reload();
-            }
+            // re-evaluate auth state without full reload
+            this.refreshAuthState();
 
         } catch (e){ }});
         // stop further probe logic in this run
