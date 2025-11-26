@@ -241,7 +241,7 @@ class IncidentElement extends HTMLElement {
               // fallback: reload once
               window.location.reload();
             }
-        } catch (e){ });
+        } catch (e){ }});
         // stop further probe logic in this run
         return;
       }
