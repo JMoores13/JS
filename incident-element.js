@@ -141,7 +141,6 @@ class IncidentElement extends HTMLElement {
       sessionStorage.setItem('oauth_completed', '1');
 
       try {
-        // Remove PKCE artifacts
         localStorage.removeItem('pkce_verifier');
         localStorage.removeItem('pkce_state');
       } catch (e) {}
@@ -152,18 +151,18 @@ class IncidentElement extends HTMLElement {
         sessionStorage.setItem('oauth_completed_at', String(Date.now()));
       } catch (e) {}
 
-      // Remove code/state from address bar so reloads or other logic don't re-trigger callback
       try {
+        // Remove code/state from address bar so reloads don't re-trigger callback
         history.replaceState(null, '', '/web/incident-reporting-tool/');
-      } catch (e) {}
+      } catch (e) { console.warn('replaceState failed', e); }
 
       // Notify other tabs
       if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
       else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
 
-      // Finally navigate back to app 
+      // Finally navigate back to app (optional if replaceState already shows app)
       window.location.href = '/web/incident-reporting-tool/';
-      
+
      }else{
       (async () => {
         try {
@@ -182,6 +181,22 @@ class IncidentElement extends HTMLElement {
 
             if (token && owner === currentUserId) {
               console.log('Liferay session present and token owner matches; no PKCE start needed');
+              return;
+            }
+
+            // Respect recent successful exchange
+            const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || '0');
+            const now = Date.now();
+            const COMPLETED_GRACE_MS = 10 * 1000; // 10s grace
+
+            if (now - completedAt < COMPLETED_GRACE_MS) {
+              console.log('Recent successful exchange detected; skipping fallback start');
+              return;
+            }
+
+            // Also ensure we are not on callback path
+            if (location.pathname === new URL(OAUTH2.redirectUri).pathname && new URL(location.href).searchParams.has('code')) {
+              console.log('On callback path; skipping fallback start');
               return;
             }
 
