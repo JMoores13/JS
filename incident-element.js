@@ -26,27 +26,22 @@ function generateCodeVerifier() {
 function clearAuthState() {
   try {
     const owner = localStorage.getItem('oauth_owner');
-    if (owner) localStorage.removeItem(`oauth_access_token_${owner}`);
-    localStorage.removeItem('oauth_access_token');
-    localStorage.removeItem('oauth_owner');
+    if (owner) {
+      try { localStorage.removeItem(`oauth_access_token_${owner}`); } catch (e) {}
+    }
+    try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+    try { localStorage.removeItem('oauth_owner'); } catch (e) {}
   } catch (e) {}
-  try {
-    localStorage.removeItem('oauth_access_token');
-    localStorage.removeItem('oauth_owner');
-  } catch (e) {  }
-  try {
-    localStorage.removeItem('pkce_verifier');
-    localStorage.removeItem('pkce_state');
-  } catch (e) {  }
+
+  try { localStorage.removeItem('pkce_verifier'); } catch (e) {}
+  try { localStorage.removeItem('pkce_state'); } catch (e) {}
+
+  try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+  try { sessionStorage.removeItem('oauth_completed_at'); } catch (e) {}
 
   try {
-    sessionStorage.removeItem('oauth_completed');
-    sessionStorage.removeItem('oauth_completed_at');
-    sessionStorage.removeItem('oauth_in_progress');
-  } catch (e) {}
-  try {
     if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
-    else localStorage.setItem('oauth_access_token', '');
+    else localStorage.setItem('incident-auth-signal', `signed-out:${Date.now()}`);
   }catch (e) {}
 }
 
@@ -76,18 +71,13 @@ function getAccessToken() {
       if (trimmed.length > 20) return trimmed;
       return null;
     }
-
-    const t = localStorage.getItem('oauth_access_token');
+    const t = localStorage.getItem(`oauth_access_token_${owner}`) || localStorage.getItem('oauth_access_token');
     if (!t) return null;
-
     const trimmed = String(t).trim();
     if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return null;
-
-    // If tokens are JWTs, require dot-separated structure; otherwise require reasonable length
     if (trimmed.includes('.') && trimmed.split('.').length === 3) return trimmed;
     if (trimmed.length > 20) return trimmed;
     return null;
-
   } catch (e) {
     console.warn('getAccessToken: failed to read token', e);
     return null;
@@ -165,8 +155,6 @@ class IncidentElement extends HTMLElement {
 
      // Probe with safe fallback
     if (isCallbackPath && hasCode) {
-      console.log('On callback page; skipping probe/fallback');
-    }else{
       (async () => {
         try {
           console.log('PKCE callback: starting exchange (callback path detected)');
@@ -207,9 +195,6 @@ class IncidentElement extends HTMLElement {
           });
 
           if (!tokenRes.ok) {
-            const txt = await tokenRes.text().catch(() => '<no-body>');
-            console.error('Token endpoint returned', tokenRes.status, txt);
-            // Clean up and return to app
             try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
             history.replaceState(null, '', '/web/incident-reporting-tool/');
             return;
@@ -235,12 +220,8 @@ class IncidentElement extends HTMLElement {
             if (meRes.ok) {
               const me = await meRes.json();
               const uid = String(me.id || me.userId || '') || null;
-            } else {
-              console.warn('/my-user-account returned', meRes.status);
             }
-          } catch (e) {
-            console.warn('Failed to fetch /my-user-account after token exchange', e);
-          }
+          } catch (e) { }
 
           // If probe non-200 or owner mismatch:
           try {
@@ -368,18 +349,19 @@ class IncidentElement extends HTMLElement {
         };
       } else {
         window.addEventListener('storage', (e) => {
-          if (e.key === 'oauth_access_token' || e.key === 'oauth_owner') {
-            console.log('storage event oauth_access_token/oauth_owner changed');
-            if (!localStorage.getItem('oauth_access_token')) {
-              try { sessionStorage.removeItem('active_user_id'); } catch (e) {}
-            }
-            if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
-            this._uiUpdateTimer = setTimeout(() => {
-              this._uiUpdateTimer = null;
-              this.refreshAuthState();
-            }, 250);
-          }
-        });
+        if (!e) return;
+        if (e.key === 'incident-auth-signal') {
+          // signal format: "signed-in:ts" or "signed-out:ts"
+          console.log('incident-auth-signal', e.newValue);
+          if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+          this._uiUpdateTimer = setTimeout(() => { this._uiUpdateTimer = null; this.refreshAuthState(); }, 250);
+          return;
+        }
+        if (e.key === 'oauth_access_token' || (e.key && e.key.startsWith('oauth_access_token_')) || e.key === 'oauth_owner') {
+          if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+          this._uiUpdateTimer = setTimeout(() => { this._uiUpdateTimer = null; this.refreshAuthState(); }, 250);
+        }
+      });
       }
     } catch (e) {
       console.warn('Cross-tab auth propagation setup failed', e);
@@ -417,7 +399,7 @@ class IncidentElement extends HTMLElement {
       const tokenForOwner = localStorage.getItem(`oauth_access_token_${storedOwner}`) || localStorage.getItem('oauth_access_token');
       if (!tokenForOwner) {
         // owner present but no token for owner -> clear owner
-        localStorage.removeItem('oauth_owner');
+        try { localStorage.removeItem('oauth_owner'); } catch (e) { }
       }
     }
 
