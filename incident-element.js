@@ -128,119 +128,40 @@ class IncidentElement extends HTMLElement {
 
     // Only run callback exchange when we are actually on the callback URL with a code
     try {
-      const isCallbackPath = window.location.pathname.includes('/web/incident-reporting-tool/callback');
+      const callbackPath = new URL(OAUTH2.redirectUri).pathname;
+      const isCallbackPath = location.pathname === callbackPath;
       const urlParams = new URL(window.location.href).searchParams;
       const hasCode = urlParams.has('code');
 
-      if (isCallbackPath && hasCode) {
-        (async () => {
-          try {
-            console.log('PKCE callback: starting exchange');
-            const url = new URL(window.location.href);
-            const code = url.searchParams.get('code');
-            const state = url.searchParams.get('state');
+      // Replace any unconditional auto-start with this probe-only flow:
+      (async () => {
+        try {
+          await fetch('/o/headless-admin-user/v1.0/my-user-account', { 
+            credentials: 'include', 
+            headers: { 
+              Accept: 'application/json' 
+            }});
 
-            console.log('Callback params:', { code: !!code, state: !!state });
+          if (probe.status === 200) {
+            const me = await probe.json();
+            const currentUserId = String(me.id || me.userId || '');
+            const token = getAccessToken();
+            const owner = localStorage.getItem('oauth_owner');
 
-            const verifier = localStorage.getItem('pkce_verifier');
-            const savedState = localStorage.getItem('pkce_state');
-
-            console.log('LocalStorage at callback: pkce_verifier', verifier ? '<present>' : '<missing>', 'pkce_state', savedState ? '<present>' : '<missing>');
-
-            if (!code || !state || !verifier || !savedState || state !== savedState) {
-              console.error('State mismatch or missing verifier; aborting token exchange', { code: !!code, state, savedState, verifier: !!verifier });
-              // Redirect back to app anonymously
-              window.location.href = '/web/incident-reporting-tool/';
-              return;
+            if (!token || owner !== currentUserId) {
+              console.log('Liferay session present and token missing/owner mismatch; starting PKCE');
+              sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+              window.startPkceAuth();
+            } else {
+              console.log('Liferay session present and token owner matches; no PKCE start needed');
             }
-
-            const body = new URLSearchParams({
-              grant_type: 'authorization_code',
-              code,
-              redirect_uri: new URL('/web/incident-reporting-tool/callback', window.location.origin).toString(),
-              client_id: OAUTH2.clientId,
-              code_verifier: verifier
-            }).toString();
-
-            console.log('Exchanging code for token at', OAUTH2.tokenUrl);
-
-            // Replace your token fetch call with these options
-            const tokenRes = await fetch(OAUTH2.tokenUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-              body,
-              mode: 'cors',            // allow cross-origin response if server permits
-              credentials: 'include'   // include cookies if server expects session cookies
-            });
-
-            if (!tokenRes.ok) {
-              const txt = await tokenRes.text().catch(() => '<no-body>');
-              console.error('Token endpoint returned', tokenRes.status, txt);
-              window.location.href = '/web/incident-reporting-tool/';
-              return;
-            }
-
-            const tokenJson = await tokenRes.json();
-            console.log('Token response keys:', Object.keys(tokenJson));
-
-            if (!tokenJson.access_token) {
-              console.error('No access_token in token response', tokenJson);
-              window.location.href = '/web/incident-reporting-tool/';
-              return;
-            }
-
-            localStorage.setItem('oauth_access_token', tokenJson.access_token);
-            sessionStorage.setItem('oauth_completed', '1');
-
-            try {
-              const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
-                method: 'GET',
-                headers: { Authorization: `Bearer ${tokenJson.access_token}`, Accept: 'application/json' },
-                credentials: 'same-origin'
-              });
-
-              if (meRes.ok) {
-                const me = await meRes.json();
-                const uid = String(me.id || me.userId || '');
-                if (uid) {
-                  localStorage.setItem('oauth_owner', uid);
-                  console.log('Stored oauth_owner', uid);
-                } else {
-                  console.warn('Could not determine user id from /my-user-account', me);
-                }
-              } else {
-                console.warn('/my-user-account returned', meRes.status);
-              }
-            } catch (e) {
-              console.warn('Failed to fetch /my-user-account after token exchange', e);
-            }
-
-            try {
-              localStorage.removeItem('pkce_verifier');
-              localStorage.removeItem('pkce_state');
-            } catch (e) { /* ignore */ }
-
-            try {
-              if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
-              else localStorage.setItem('oauth_access_token', localStorage.getItem('oauth_access_token'));
-            } catch (e) {}
-
-            try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-            console.log('Token exchange complete; redirecting back to app');
-            window.location.href = '/web/incident-reporting-tool/';
-          } catch (err) {
-            console.error('Callback exchange error', err);
-            try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-            window.location.href = '/web/incident-reporting-tool/';
+          } else {
+            console.log('No Liferay session detected (probe returned', probe.status, '); staying anonymous');
           }
-        })();
-      } else {
-        // Not on callback page or no code present — do nothing here
-        console.log('Not on callback page or no code param; skipping callback exchange');
-      }
-    } catch (e) {
-      console.warn('Callback guard failed', e);
-    }
+        } catch (e) {
+          console.warn('Liferay session probe failed', e);
+        }
+      })();
 
     this.innerHTML = `
       <style>
