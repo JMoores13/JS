@@ -64,17 +64,19 @@ function getAccessToken() {
     const owner = localStorage.getItem('oauth_owner');
     
     if (owner) {
-      const t = localStorage.getItem(`oauth_access_token_${owner}`) || localStorage.getItem('oauth_access_token');
+      const t = localStorage.getItem(`oauth_access_token_${owner}`);
       if (t) return t.trim();
+      try { localStorage.removeItem('oauth_owner'); } catch (e) {}
     }
 
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith('oauth_access_token')) {
+      if (k && k.startsWith('oauth_access_token_')) {
         const v = localStorage.getItem(k);
         if (v) return v.trim();
       }
     }
+
     const t = localStorage.getItem('oauth_access_token');
     return t ? t.trim() : null;
   } catch (e) {
@@ -145,18 +147,100 @@ class IncidentElement extends HTMLElement {
         const state = url.searchParams.get('state');
         const verifier = localStorage.getItem('pkce_verifier');
         const savedState = localStorage.getItem('pkce_state')
-      }catch (e) {}
+        
+        
+        if (!code || !state || !verifier || !savedState || state !== savedState) {
+          // invalid callback: cleanup and return to app
+          try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
+          try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+          history.replaceState(null, '', '/web/incident-reporting-tool/');
+          return;
+        }
 
+        const body = new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: OAUTH2.redirectUri,
+          client_id: OAUTH2.clientId,
+          code_verifier: verifier
+        }).toString();
+
+        const tokenRes = await fetch(OAUTH2.tokenUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+          body,
+          mode: 'cors'
+        });
+
+        if (!tokenRes.ok) {
+          try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+          history.replaceState(null, '', '/web/incident-reporting-tool/');
+          return;
+        }
+
+        const tokenJson = await tokenRes.json();
+        const token = tokenJson && tokenJson.access_token;
+        if (!token) {
+          try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+          history.replaceState(null, '', '/web/incident-reporting-tool/');
+          return;
+        }
+
+        // Try to resolve owner id with the new token
+        let uid = null;
+        try {
+          const meRes = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+            credentials: 'same-origin'
+          });
+          if (meRes.ok) {
+            const me = await meRes.json();
+            uid = String(me.id || me.userId || '') || null;
+          }
+        } catch (e) { /* ignore */ }
+
+        // Persist token keyed by owner when possible
+        try {
+          if (uid) {
+            localStorage.setItem(`oauth_access_token_${uid}`, token);
+            localStorage.setItem('oauth_owner', uid);
+          } else {
+            localStorage.setItem('oauth_access_token', token);
+            localStorage.removeItem('oauth_owner');
+          }
+        } catch (e) { console.warn('persist token failed', e); }
+
+        // mark completion and cleanup PKCE artifacts
+        try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) {}
+        try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
+        try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+
+        // remove code/state from URL and notify other tabs
+        try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
+        try {
+          if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
+          else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
+        } catch (e) {}
+
+        // re-evaluate auth state in-place (no full reload)
+        try { await this.refreshAuthState(); } catch (e) { console.warn('refresh after callback failed', e); }
+
+      } catch (err) {
+        console.error('Callback exchange error', err);
+        try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+        try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
+      }
     }
+  
 
   async connectedCallback() {
-    console.log("incidentElement connected");
+    // in connectedCallback: replace the probe block with this simple guard
     const callbackPath = new URL(OAUTH2.redirectUri).pathname;
-    
     const urlParams = new URL(window.location.href).searchParams;
     const hasCode = urlParams.has('code');
 
-    if(location.pathname === callbackPath && hasCode){
+    if (location.pathname === callbackPath && hasCode) {
+      // run the callback handler and stop further startup logic for this run
       await this.handleCallback();
       return;
     }
@@ -291,14 +375,33 @@ class IncidentElement extends HTMLElement {
   async refreshAuthState() {
     const token = getAccessToken();
 
-    const storedOwner = localStorage.getItem('oauth_owner');
-    if (storedOwner) {
-      const tokenForOwner = localStorage.getItem(`oauth_access_token_${storedOwner}`) || localStorage.getItem('oauth_access_token');
-      if (!tokenForOwner) {
-        // owner present but no token for owner -> clear owner
-        try { localStorage.removeItem('oauth_owner'); } catch (e) { }
+      const storedOwner = localStorage.getItem('oauth_owner');
+
+      if (storedOwner && storedOwner !== currentUserId) {
+        console.warn('refreshAuthState: token owner mismatch; clearing tokens for other owners', storedOwner, currentUserId);
+
+        // Remove any oauth_access_token_<other> entries to avoid stale tokens
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('oauth_access_token_') && k !== `oauth_access_token_${currentUserId}`) {
+            try { localStorage.removeItem(k); } catch (e) {}
+          }
+        }
+
+        // Remove generic token to avoid ambiguity
+        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+
+        // Ensure owner is set to the current user
+        try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
+
+        // Show anonymous view while we re-evaluate
+        this._cachedUserRoles = [];
+        await this.loadDataAnonymous();
+        return;
       }
-    }
+
+      // Ensure owner is set to the current user (idempotent)
+      try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
 
     // Respect in-progress flows
     const inProgress = Number(sessionStorage.getItem('oauth_in_progress') || '0');
@@ -574,9 +677,9 @@ class IncidentElement extends HTMLElement {
       name: String(r?.name || r?.roleName || r?.label || '').toLowerCase().trim()
     })) : [];
 
-    // allowed set: include role keys and normalized names
-    const allowedRoleKeys = new Set(['test-team-2', 'test_team_2']);
-    const allowedRoleNames = new Set(['test team 2']);
+      // allowed set: include role keys and normalized names
+    const allowedRoleKeys = new Set(['test-team-2', 'test_team_2', 'testteam2']);
+    const allowedRoleNames = new Set(['test team 2', 'testteam2']);
 
     const apiRoleAllow = normalizedRoles.some(r => {
       const key = (r.key || '').toString().toLowerCase().trim();
