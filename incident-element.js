@@ -64,8 +64,16 @@ function getAccessToken() {
     const owner = localStorage.getItem('oauth_owner');
     
     if (owner) {
-      const t = localStorage.getItem(`oauth_access_token_${owner}`);
-      return t ? t.trim() : null;
+      const t = localStorage.getItem(`oauth_access_token_${owner}`) || localStorage.getItem('oauth_access_token');
+      if (t) return t.trim();
+    }
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('oauth_access_token')) {
+        const v = localStorage.getItem(k);
+        if (v) return v.trim();
+      }
     }
     const t = localStorage.getItem('oauth_access_token');
     return t ? t.trim() : null;
@@ -378,6 +386,8 @@ class IncidentElement extends HTMLElement {
         key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
       }));
 
+      console.log('User roles:', this._cachedUserRoles);
+
     } catch (e) {
       console.warn('refreshAuthState: validation error', e);
       this._cachedUserRoles = [];
@@ -564,11 +574,14 @@ class IncidentElement extends HTMLElement {
       name: String(r?.name || r?.roleName || r?.label || '').toLowerCase().trim()
     })) : [];
 
+    // allowed set: include role keys and normalized names
+    const allowedRoleKeys = new Set(['test-team-2', 'test_team_2']);
     const allowedRoleNames = new Set(['test team 2']);
 
-    const apiRoleAllow = normalizedRoles.length > 0 && normalizedRoles.some(r => {
-      const nm = (r && r.name) ? r.name.toString().toLowerCase().trim() : '';
-      return nm && allowedRoleNames.has(nm);
+    const apiRoleAllow = normalizedRoles.some(r => {
+      const key = (r.key || '').toString().toLowerCase().trim();
+      const name = (r.name || '').toString().toLowerCase().trim();
+      return (key && allowedRoleKeys.has(key)) || (name && allowedRoleNames.has(name));
     });
 
     const rawToken = getAccessToken();
