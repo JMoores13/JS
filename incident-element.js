@@ -68,7 +68,7 @@ function getAccessToken() {
       return t ? t.trim() : null;
     }
 
-    const generic = local.getItem('oauth_access_token');
+    const generic = localStorage.getItem('oauth_access_token');
     if (generic) return generic.trim();
 
     return null;
@@ -785,6 +785,7 @@ class IncidentElement extends HTMLElement {
       </div>
     `;
   }
+}
 }
 
 customElements.define("incident-element", IncidentElement);
