@@ -195,38 +195,22 @@ class IncidentElement extends HTMLElement {
           }
         } catch (e) { /* ignore */ }
 
-       // remove any other owner tokens and generic token to avoid stale tokens
+      // remove any existing owner-keyed tokens and generic token first
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
         if (k && k.startsWith('oauth_access_token_')) {
-          localStorage.removeItem(k);
+          try { localStorage.removeItem(k); } catch (e) {}
         }
       }
-      localStorage.removeItem('oauth_access_token'); 
+      try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
 
-      // Persist token keyed by owner when possible, and clean up others
-      try {
-        // Remove any generic token and any other owner tokens to avoid stale tokens
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('oauth_access_token_')) {
-            localStorage.removeItem(k);
-          }
-        }
-        localStorage.removeItem('oauth_access_token');
-
-        if (uid) {
-          localStorage.setItem(`oauth_access_token_${uid}`, token);
-          localStorage.setItem('oauth_owner', uid);
-        } else {
-          // If we couldn't resolve owner, store as generic but do NOT set oauth_owner
-          localStorage.setItem('oauth_access_token', token);
-          localStorage.removeItem('oauth_owner');
-        }
-      } catch (e) {
-        console.warn('persist token failed', e);
+      if (uid) {
+        localStorage.setItem(`oauth_access_token_${uid}`, token);
+        localStorage.setItem('oauth_owner', uid);
+      } else {
+        localStorage.setItem('oauth_access_token', token);
+        localStorage.removeItem('oauth_owner');
       }
-    } catch (e) {}
   }
   
 
@@ -372,34 +356,8 @@ class IncidentElement extends HTMLElement {
   async refreshAuthState() {
     const token = getAccessToken();
 
-      /*
-      const storedOwner = localStorage.getItem('oauth_owner');
-
-      if (storedOwner && storedOwner !== currentUserId) {
-        console.warn('refreshAuthState: token owner mismatch; clearing tokens for other owners', storedOwner, currentUserId);
-
-        // Remove any oauth_access_token_<other> entries to avoid stale tokens
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('oauth_access_token_') && k !== `oauth_access_token_${currentUserId}`) {
-            try { localStorage.removeItem(k); } catch (e) {}
-          }
-        }
-
-        // Remove generic token to avoid ambiguity
-        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
-
-        // Ensure owner is set to the current user
-        try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
-
-        // Show anonymous view while we re-evaluate
-        this._cachedUserRoles = [];
-        await this.loadDataAnonymous();
-        return;
-      } */
-
-      // Ensure owner is set to the current user (idempotent)
-      try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
+    // Ensure owner is set to the current user (idempotent)
+    try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
 
     // Respect in-progress flows
     const inProgress = Number(sessionStorage.getItem('oauth_in_progress') || '0');
@@ -451,7 +409,7 @@ class IncidentElement extends HTMLElement {
       return;
     }
 
-
+    let currentUserId = null;
 
     try {
       const res = await apiFetch('/o/headless-admin-user/v1.0/my-user-account');
@@ -468,68 +426,68 @@ class IncidentElement extends HTMLElement {
       const me = await res.json();
       const currentUserId = String(me.id || me.userId || '');
 
-      const storedOwner = localStorage.getItem('oauth_owner');
+      currentUserId = String(me.id || me.userId || '');
 
-      if (storedOwner && storedOwner !== currentUserId) {
-        console.warn('refreshAuthState: token owner mismatch; clearing tokens for other owners', storedOwner, currentUserId);
+      const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
+      this._cachedUserRoles = raw.map(r => ({
+        id: Number(r.id || r.roleId || 0),
+        name: String(r.name || r.roleName || r.label || '').toLowerCase().trim(),
+        key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
+      }));
 
-        // Remove any oauth_access_token_<other> entries to avoid stale tokens
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('oauth_access_token_') && k !== `oauth_access_token_${currentUserId}`) {
-            try { localStorage.removeItem(k); } catch (e) {}
-          }
-        }
+      console.log('User roles: ', this._cachedUserRoles);
+    } catch (e) {
+      console.warn('refreshAuthState: validation error', e);
+      this._cachedUserRoles = [];
+      await this.loadDataAnonymous();
+      return;
+    }
 
-        // Remove generic token to avoid ambiguity
-        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+      // Now that we have validated currentUserId, ensure localStorage tokens are consistent
+  try {
+    const storedOwner = localStorage.getItem('oauth_owner');
 
-        // Ensure owner is set to the current user
-        try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
-
-        // Show anonymous view while we re-evaluate
-        this._cachedUserRoles = [];
-        await this.loadDataAnonymous();
-        return;
+    // If storedOwner exists but no token for that owner, clear it
+    if (storedOwner) {
+      const tokenForStoredOwner = localStorage.getItem(`oauth_access_token_${storedOwner}`);
+      if (!tokenForStoredOwner) {
+        try { localStorage.removeItem('oauth_owner'); } catch (e) {}
       }
+    }
 
-      // Ensure localStorage token keys match the validated current user
-      try {
-        // If there is a stored owner that doesn't match, remove other owner tokens
-        const storedOwner = localStorage.getItem('oauth_owner');
-        if (storedOwner && storedOwner !== currentUserId) {
-          // Remove any oauth_access_token_<other> entries
-          for (let i = localStorage.length - 1; i >= 0; i--) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith('oauth_access_token_') && k !== `oauth_access_token_${currentUserId}`) {
-              try { localStorage.removeItem(k); } catch (e) {}
-            }
-          }
-          // Remove generic token to avoid ambiguity
-          try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+    // If storedOwner differs from the validated currentUserId, remove other owner tokens
+    if (storedOwner && storedOwner !== currentUserId) {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('oauth_access_token_') && k !== `oauth_access_token_${currentUserId}`) {
+          try { localStorage.removeItem(k); } catch (e) {}
         }
-
-        // If we have a token for currentUserId, set oauth_owner to it.
-        const tokenForCurrent = localStorage.getItem(`oauth_access_token_${currentUserId}`);
-        if (tokenForCurrent) {
-          localStorage.setItem('oauth_owner', currentUserId);
-        } else {
-          // If no owner-keyed token exists but a generic token exists, keep generic but clear owner
-          const generic = localStorage.getItem('oauth_access_token');
-          if (generic) {
-            localStorage.removeItem('oauth_owner');
-          } else {
-            // No token at all: ensure owner is cleared so getAccessToken returns null
-            localStorage.removeItem('oauth_owner');
-          }
-        }
-      } catch (e) {
-        console.warn('owner sync failed', e);
       }
+      try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+      try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
+    }
 
-    await this.loadData();
-  } catch (e) {}
+    // If we have a token keyed to currentUserId, ensure oauth_owner is set
+    const tokenForCurrent = localStorage.getItem(`oauth_access_token_${currentUserId}`);
+    if (tokenForCurrent) {
+      try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
+    } else {
+      // If no owner-keyed token but a generic token exists, keep generic and clear oauth_owner
+      const generic = localStorage.getItem('oauth_access_token');
+      if (generic) {
+        try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+      } else {
+        // no token at all: clear owner
+        try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+      }
+    }
+  } catch (e) {
+    console.warn('refreshAuthState: owner/token sync failed', e);
   }
+
+  // Finally load data with the validated roles/token
+  await this.loadData();
+}
 
   parseDate(val) {
     if (!val) return null;
