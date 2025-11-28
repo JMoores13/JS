@@ -215,6 +215,44 @@ class IncidentElement extends HTMLElement {
         this.renderList();
   } catch (e){}
 }
+
+  signOut() {
+    try {
+      // Clear all stored auth artifacts
+      clearAuthState();
+    } catch (e) {
+      console.warn('signOut: clearAuthState failed', e);
+    }
+
+    // Clear in-memory cached roles and any edit caches
+    try {
+      this._cachedUserRoles = [];
+      this.editAccessCache && this.editAccessCache.clear && this.editAccessCache.clear();
+    } catch (e) {  }
+
+    // Notify other tabs (mirrors clearAuthState behavior)
+    try {
+      if ('BroadcastChannel' in window) {
+        new BroadcastChannel('incident-auth').postMessage('signed-out');
+      } else {
+        localStorage.setItem('incident-auth-signal', `signed-out:${Date.now()}`);
+      }
+    } catch (e) {  }
+
+    // Small debounce to avoid races with storage events
+    if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+    this._uiUpdateTimer = setTimeout(async () => {
+      this._uiUpdateTimer = null;
+      try {
+        // Force re-evaluation of auth state and re-render list
+        await this.refreshAuthState();
+      } catch (e) {
+        console.warn('signOut: refreshAuthState failed', e);
+        // still re-render to remove edit links
+        try { this._cachedUserRoles = []; this.renderList(); } catch (e) {}
+      }
+    }, 50);
+  }
   
   async connectedCallback() {
     // in connectedCallback: replace the probe block with this simple guard
