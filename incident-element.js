@@ -491,6 +491,7 @@ class IncidentElement extends HTMLElement {
 
     await this.loadData();
   } catch (e) {}
+  }
 
   parseDate(val) {
     if (!val) return null;
@@ -786,6 +787,6 @@ class IncidentElement extends HTMLElement {
     `;
   }
 }
-}
+
 
 customElements.define("incident-element", IncidentElement);
