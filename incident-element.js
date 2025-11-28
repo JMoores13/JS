@@ -454,7 +454,7 @@ class IncidentElement extends HTMLElement {
 
       const me = await res.json();
       const currentUserId = String(me.id || me.userId || '');
-      
+
       // Ensure localStorage token keys match the validated current user
       try {
         // If there is a stored owner that doesn't match, remove other owner tokens
@@ -490,7 +490,7 @@ class IncidentElement extends HTMLElement {
       }
 
     await this.loadData();
-  }
+  } catch (e) {}
 
   parseDate(val) {
     if (!val) return null;
