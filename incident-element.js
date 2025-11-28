@@ -66,15 +66,10 @@ function getAccessToken() {
       const t = localStorage.getItem(`oauth_access_token_${owner}`);
       if (t) return t.trim();
     }
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('oauth_access_token_')) {
-        const v = localStorage.getItem(k);
-        if (v) return v.trim();
-      }
-    }
-    const t = localStorage.getItem('oauth_access_token');
-    return t ? t.trim() : null;
+    // No owner set: return the generic token only (do NOT scan other owner tokens).
+    const generic = localStorage.getItem('oauth_access_token');
+    return generic ? generic.trim() : null;
+
   } catch (e) {
     console.warn('getAccessToken error', e);
     return null;
@@ -195,22 +190,29 @@ class IncidentElement extends HTMLElement {
           }
         } catch (e) { /* ignore */ }
 
-      // remove any existing owner-keyed tokens and generic token first
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('oauth_access_token_')) {
-          try { localStorage.removeItem(k); } catch (e) {}
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('oauth_access_token_')) {
+            try { localStorage.removeItem(k); } catch (e) {}
+          }
         }
-      }
-      try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
 
-      if (uid) {
-        localStorage.setItem(`oauth_access_token_${uid}`, token);
-        localStorage.setItem('oauth_owner', uid);
-      } else {
-        localStorage.setItem('oauth_access_token', token);
-        localStorage.removeItem('oauth_owner');
-      }
+        // persist for this owner (or generic if uid missing)
+        if (uid) {
+          localStorage.setItem(`oauth_access_token_${uid}`, token);
+          localStorage.setItem('oauth_owner', uid);
+        } else {
+          localStorage.setItem('oauth_access_token', token);
+          localStorage.removeItem('oauth_owner');
+        }
+
+        // notify other tabs and re-evaluate in-place
+        if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
+        else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
+
+        try { await this.refreshAuthState(); } catch (e) { console.warn('refresh after callback failed', e); }
+        this.renderList();
   } catch (e){}
 }
   
@@ -278,6 +280,10 @@ class IncidentElement extends HTMLElement {
       this._uiUpdateTimer = setTimeout(() => {
         this._uiUpdateTimer = null;
         this.refreshAuthState();
+        this.refreshAuthState().then(() => {
+          // ensure UI recomputes edit visibility immediately
+          try { this.renderList(); } catch (e) {}
+        });
       }, 250);
     });
 
@@ -654,6 +660,14 @@ class IncidentElement extends HTMLElement {
   }
 
   renderIncident(i) {
+
+    console.debug('renderIncident', {
+      id: i.id,
+      oauth_owner: localStorage.getItem('oauth_owner'),
+      tokenPresent: !!getAccessToken(),
+      cachedRoles: this._cachedUserRoles
+    });
+
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
     console.debug('renderIncident', { id: i.id, oauth_owner: localStorage.getItem('oauth_owner'), token: getAccessToken()?.slice?.(0,16) || null, cachedRoles: this._cachedUserRoles });
