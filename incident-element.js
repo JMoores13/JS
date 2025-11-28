@@ -214,7 +214,6 @@ class IncidentElement extends HTMLElement {
   } catch (e){}
 }
   
-
   async connectedCallback() {
     // in connectedCallback: replace the probe block with this simple guard
     const callbackPath = new URL(OAUTH2.redirectUri).pathname;
@@ -425,8 +424,6 @@ class IncidentElement extends HTMLElement {
       }
 
       const me = await res.json();
-      const currentUserId = String(me.id || me.userId || '');
-
       currentUserId = String(me.id || me.userId || '');
 
       const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
