@@ -65,20 +65,13 @@ function getAccessToken() {
     
     if (owner) {
       const t = localStorage.getItem(`oauth_access_token_${owner}`);
-      if (t) return t.trim();
-      try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+      return t ? t.trim() : null;
     }
 
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('oauth_access_token_')) {
-        const v = localStorage.getItem(k);
-        if (v) return v.trim();
-      }
-    }
+    const generic = local.getItem('oauth_access_token');
+    if (generic) return generic.trim();
 
-    const t = localStorage.getItem('oauth_access_token');
-    return t ? t.trim() : null;
+    return null;
   } catch (e) {
     console.warn('getAccessToken error', e);
     return null;
@@ -199,38 +192,30 @@ class IncidentElement extends HTMLElement {
           }
         } catch (e) { /* ignore */ }
 
-        // Persist token keyed by owner when possible
-        try {
-          if (uid) {
-            localStorage.setItem(`oauth_access_token_${uid}`, token);
-            localStorage.setItem('oauth_owner', uid);
-          } else {
-            localStorage.setItem('oauth_access_token', token);
-            localStorage.removeItem('oauth_owner');
+      // Persist token keyed by owner when possible, and clean up others
+      try {
+        // Remove any generic token and any other owner tokens to avoid stale tokens
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('oauth_access_token_')) {
+            localStorage.removeItem(k);
           }
-        } catch (e) { console.warn('persist token failed', e); }
+        }
+        localStorage.removeItem('oauth_access_token');
 
-        // mark completion and cleanup PKCE artifacts
-        try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) {}
-        try { localStorage.removeItem('pkce_verifier'); localStorage.removeItem('pkce_state'); } catch (e) {}
-        try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-
-        // remove code/state from URL and notify other tabs
-        try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
-        try {
-          if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
-          else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
-        } catch (e) {}
-
-        // re-evaluate auth state in-place (no full reload)
-        try { await this.refreshAuthState(); } catch (e) { console.warn('refresh after callback failed', e); }
-
-      } catch (err) {
-        console.error('Callback exchange error', err);
-        try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-        try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
+        if (uid) {
+          localStorage.setItem(`oauth_access_token_${uid}`, token);
+          localStorage.setItem('oauth_owner', uid);
+        } else {
+          // If we couldn't resolve owner, store as generic but do NOT set oauth_owner
+          localStorage.setItem('oauth_access_token', token);
+          localStorage.removeItem('oauth_owner');
+        }
+      } catch (e) {
+        console.warn('persist token failed', e);
       }
-    }
+    } catch (e) {}
+  }
   
 
   async connectedCallback() {
@@ -469,34 +454,40 @@ class IncidentElement extends HTMLElement {
 
       const me = await res.json();
       const currentUserId = String(me.id || me.userId || '');
+      
+      // Ensure localStorage token keys match the validated current user
+      try {
+        // If there is a stored owner that doesn't match, remove other owner tokens
+        const storedOwner = localStorage.getItem('oauth_owner');
+        if (storedOwner && storedOwner !== currentUserId) {
+          // Remove any oauth_access_token_<other> entries
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('oauth_access_token_') && k !== `oauth_access_token_${currentUserId}`) {
+              try { localStorage.removeItem(k); } catch (e) {}
+            }
+          }
+          // Remove generic token to avoid ambiguity
+          try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+        }
 
-      const storedOwner = localStorage.getItem('oauth_owner');
-      if (storedOwner && storedOwner !== currentUserId) {
-        console.warn('refreshAuthState: token owner mismatch; clearing token and staying anonymous', storedOwner, currentUserId);
-        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
-        try { localStorage.removeItem('oauth_owner'); } catch (e) {}
-        this._cachedUserRoles = [];
-        await this.loadDataAnonymous();
-        return;
+        // If we have a token for currentUserId, set oauth_owner to it.
+        const tokenForCurrent = localStorage.getItem(`oauth_access_token_${currentUserId}`);
+        if (tokenForCurrent) {
+          localStorage.setItem('oauth_owner', currentUserId);
+        } else {
+          // If no owner-keyed token exists but a generic token exists, keep generic but clear owner
+          const generic = localStorage.getItem('oauth_access_token');
+          if (generic) {
+            localStorage.removeItem('oauth_owner');
+          } else {
+            // No token at all: ensure owner is cleared so getAccessToken returns null
+            localStorage.removeItem('oauth_owner');
+          }
+        }
+      } catch (e) {
+        console.warn('owner sync failed', e);
       }
-
-      try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
-
-      const raw = me.roleBriefs || me.roles || me.accountBriefs || [];
-      this._cachedUserRoles = raw.map(r => ({
-        id: Number(r.id || r.roleId || 0),
-        name: String(r.name || r.roleName || r.label || '').toLowerCase().trim(),
-        key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
-      }));
-
-      console.log('User roles:', this._cachedUserRoles);
-
-    } catch (e) {
-      console.warn('refreshAuthState: validation error', e);
-      this._cachedUserRoles = [];
-      await this.loadDataAnonymous();
-      return;
-    }
 
     await this.loadData();
   }
