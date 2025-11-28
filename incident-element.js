@@ -211,7 +211,8 @@ class IncidentElement extends HTMLElement {
         localStorage.setItem('oauth_access_token', token);
         localStorage.removeItem('oauth_owner');
       }
-  }
+  } catch (e){}
+}
   
 
   async connectedCallback() {
