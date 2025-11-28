@@ -62,16 +62,19 @@ async function generateCodeChallenge(verifier) {
 function getAccessToken() {
   try {
     const owner = localStorage.getItem('oauth_owner');
-    
     if (owner) {
       const t = localStorage.getItem(`oauth_access_token_${owner}`);
-      return t ? t.trim() : null;
+      if (t) return t.trim();
     }
-
-    const generic = localStorage.getItem('oauth_access_token');
-    if (generic) return generic.trim();
-
-    return null;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('oauth_access_token_')) {
+        const v = localStorage.getItem(k);
+        if (v) return v.trim();
+      }
+    }
+    const t = localStorage.getItem('oauth_access_token');
+    return t ? t.trim() : null;
   } catch (e) {
     console.warn('getAccessToken error', e);
     return null;
@@ -191,6 +194,15 @@ class IncidentElement extends HTMLElement {
             uid = String(me.id || me.userId || '') || null;
           }
         } catch (e) { /* ignore */ }
+
+       // remove any other owner tokens and generic token to avoid stale tokens
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('oauth_access_token_')) {
+          localStorage.removeItem(k);
+        }
+      }
+      localStorage.removeItem('oauth_access_token'); 
 
       // Persist token keyed by owner when possible, and clean up others
       try {
@@ -360,6 +372,7 @@ class IncidentElement extends HTMLElement {
   async refreshAuthState() {
     const token = getAccessToken();
 
+      /*
       const storedOwner = localStorage.getItem('oauth_owner');
 
       if (storedOwner && storedOwner !== currentUserId) {
@@ -383,7 +396,7 @@ class IncidentElement extends HTMLElement {
         this._cachedUserRoles = [];
         await this.loadDataAnonymous();
         return;
-      }
+      } */
 
       // Ensure owner is set to the current user (idempotent)
       try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
@@ -454,6 +467,31 @@ class IncidentElement extends HTMLElement {
 
       const me = await res.json();
       const currentUserId = String(me.id || me.userId || '');
+
+      const storedOwner = localStorage.getItem('oauth_owner');
+
+      if (storedOwner && storedOwner !== currentUserId) {
+        console.warn('refreshAuthState: token owner mismatch; clearing tokens for other owners', storedOwner, currentUserId);
+
+        // Remove any oauth_access_token_<other> entries to avoid stale tokens
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('oauth_access_token_') && k !== `oauth_access_token_${currentUserId}`) {
+            try { localStorage.removeItem(k); } catch (e) {}
+          }
+        }
+
+        // Remove generic token to avoid ambiguity
+        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+
+        // Ensure owner is set to the current user
+        try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
+
+        // Show anonymous view while we re-evaluate
+        this._cachedUserRoles = [];
+        await this.loadDataAnonymous();
+        return;
+      }
 
       // Ensure localStorage token keys match the validated current user
       try {
@@ -662,6 +700,7 @@ class IncidentElement extends HTMLElement {
   renderIncident(i) {
     const isExpanded = this.expandedIds.has(String(i.id));
     const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
+    console.debug('renderIncident', { id: i.id, oauth_owner: localStorage.getItem('oauth_owner'), token: getAccessToken()?.slice?.(0,16) || null, cachedRoles: this._cachedUserRoles });
 
     const normalizedRoles = Array.isArray(this._cachedUserRoles) ? (this._cachedUserRoles || []).map(r => ({
       id: Number(r?.id || r?.roleId || 0),
@@ -674,9 +713,9 @@ class IncidentElement extends HTMLElement {
     const allowedRoleNames = new Set(['test team 2', 'testteam2']);
 
     const apiRoleAllow = normalizedRoles.some(r => {
-      const key = (r.key || '').toString().toLowerCase().trim();
-      const name = (r.name || '').toString().toLowerCase().trim();
-      return (key && allowedRoleKeys.has(key)) || (name && allowedRoleNames.has(name));
+      const key = (r.key || '').toString().toLowerCase().replace(/\s+/g,'').replace(/_/g,'-').trim();
+      const name = (r.name || '').toString().toLowerCase().replace(/\s+/g,'').trim();
+      return allowedRoleKeys.has(key) || allowedRoleNames.has(name);
     });
 
     const rawToken = getAccessToken();
