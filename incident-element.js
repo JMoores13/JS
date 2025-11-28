@@ -125,19 +125,7 @@ class IncidentElement extends HTMLElement {
     return editKeys.some(k => Object.prototype.hasOwnProperty.call(actions, k));
   }
 
-  async connectedCallback() {
-    console.log("incidentElement connected");
-    const callbackPath = new URL(OAUTH2.redirectUri).pathname;
-    
-    const urlParams = new URL(window.location.href).searchParams;
-    const hasCode = urlParams.has('code');
-
-    if(location.pathname === callbackPath && hasCode){
-      await this.handleCallback();
-      return;
-    }
-
-    async handleCallback(){
+  async handleCallback(){
       try {
         const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || 0);
         if (Date.now() - completedAt < 5000){
@@ -149,11 +137,21 @@ class IncidentElement extends HTMLElement {
         const state = url.searchParams.get('state');
         const verifier = localStorage.getItem('pkce_verifier');
         const savedState = localStorage.getItem('pkce_state')
-      }
+      }catch (e) {}
 
     }
 
+  async connectedCallback() {
+    console.log("incidentElement connected");
+    const callbackPath = new URL(OAUTH2.redirectUri).pathname;
+    
+    const urlParams = new URL(window.location.href).searchParams;
+    const hasCode = urlParams.has('code');
 
+    if(location.pathname === callbackPath && hasCode){
+      await this.handleCallback();
+      return;
+    }
 
     this.innerHTML = `
       <style>
@@ -183,6 +181,7 @@ class IncidentElement extends HTMLElement {
       <div id="incident-list"></div>
     `;
 
+  
     this.querySelector("#search-input").addEventListener("input", (e) => {
       this.searchQuery = e.target.value;
       this.currentPage = 0;
@@ -218,6 +217,7 @@ class IncidentElement extends HTMLElement {
         this.refreshAuthState();
       }, 200);
     });
+  
 
     // Cross-tab propagation
     try {
