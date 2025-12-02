@@ -1,0 +1,97 @@
+<div id="svg-container">
+    </div>
+
+<button onclick="updateSVG(25, 'red')">25% (1 Box, Red)</button>
+<button onclick="updateSVG(50, 'blue')">50% (2 Boxes, Blue)</button>
+<button onclick="updateSVG(60, 'green')">60% (3 Boxes, Green)</button>
+<button onclick="updateSVG(100, 'purple')">100% (4 Boxes, Purple)</button>
+<button onclick="updateSVG(0, 'gray')">0% (0 Boxes, Gray)</button>
+
+<script>
+
+/**
+ * Dynamically creates an SVG string with nested colored boxes.
+ * @param {number} percentage - The percentage value (0 to 100) to determine black boxes.
+ * @param {string} outerColor - The color for the outside box (e.g., 'blue', '#FF5733').
+ * @returns {string} The complete SVG string.
+ */
+function createDynamicSVG(percentage, outerColor) {
+    // 1. Determine the number of black boxes (0 to 4)
+    // 0%  -> 0 boxes
+    // 1% - 25%   -> 1 box
+    // 26% - 50%  -> 2 boxes
+    // 51% - 75%  -> 3 boxes
+    // 76% - 100% -> 4 boxes
+    let numBlackBoxes = 0;
+    if (percentage > 0) {
+        // Math.ceil rounds up to the nearest whole number.
+        // E.g., 25 / 25 = 1, 26 / 25 = 1.04 -> 2, 75 / 25 = 3, 76 / 25 = 3.04 -> 4
+        numBlackBoxes = Math.ceil(percentage / 25);
+    }
+    // Ensure we don't exceed 4 boxes
+    numBlackBoxes = Math.min(4, numBlackBoxes);
+
+    // 2. SVG Dimensions and Box Layout (viewBox is 100x100 for easy scaling)
+    const svgWidth = 100;
+    const svgHeight = 30;
+
+    // Outer Box (full SVG size)
+    const outerRect = {
+        x: 0, y: 0, width: svgWidth, height: svgHeight
+    };
+
+    // Inner White Box (centered, e.g., 80x80)
+    const innerRect = {
+        x: 10, y: 10, width: 80, height: 15
+    };
+
+    // Black Box dimensions and spacing (The 4 black boxes will be in a row)
+    const boxSizeX = 15;
+    const boxSizeY = 10;
+    const boxSize = 10;
+    const boxSpacing = 10;
+    // Calculate the starting X position to center the four boxes
+    // 4 boxes * 10 width + 3 spaces * 10 spacing = 70. Centered in 80 width: (80 - 70) / 2 = 5
+    const boxesStartX = innerRect.x + 2;
+    const boxesY = innerRect.y + (innerRect.height /2) - (boxSize / 2) - 2; // Center vertically
+
+    // 3. Generate the Black Box Rectangles
+    let blackBoxesSVG = '';
+    for (let i = 0; i < numBlackBoxes; i++) {
+        const x = boxesStartX + i * (boxSize + boxSpacing);
+        blackBoxesSVG += `<rect x="${x}" y="${boxesY}" width="${boxSizeX}" height="${boxSizeY}" fill="black" />`;
+    }
+
+    // 4. Construct the Final SVG String
+    const svgString = `
+        <svg width="200" height="200" viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg">
+            <rect x="${outerRect.x}" y="${outerRect.y}" width="${outerRect.width}" height="${outerRect.height}" fill="${outerColor}" />
+
+            <rect x="${innerRect.x}" y="${innerRect.y - 2}" width="${innerRect.width}" height="${innerRect.height}" fill="white" />
+
+            ${blackBoxesSVG}
+        </svg>
+    `;
+
+    return svgString.trim();
+}
+
+// Function to inject the SVG into the container
+function updateSVG(percentage, color) {
+    const svgContainer = document.getElementById('svg-container');
+
+    // Generate the new SVG string
+    const svgString = createDynamicSVG(percentage, color);
+
+    // Set the SVG string as the inner HTML of the container
+    // Note: If you need to manipulate the SVG *after* creation using JS,
+    // it's better to use DOM methods (document.createElementNS) instead of innerHTML.
+    // For simple display, innerHTML is the easiest approach.
+    svgContainer.innerHTML = svgString;
+}
+
+// Initial load (e.g., 50% completion with a blue outer box)
+document.addEventListener('DOMContentLoaded', () => {
+    updateSVG(50, 'blue');
+});
+</script>
