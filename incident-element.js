@@ -41,8 +41,13 @@ function clearAuthState() {
       sessionStorage.removeItem('oauth_in_progress');
       sessionStorage.removeItem('oauth_completed_at');
 
-      if('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-out');
-      else localStorage.setItem('incident-auth-signal', `signed-out:${Date.now()}`);
+      if ('BroadcastChannel' in window) {
+        const bc = new BroadcastChannel('incident-auth');
+        bc.postMessage('signed-out');
+        bc.close();
+      } else {
+        localStorage.setItem('incident-auth-signal', `signed-out:${Date.now()}`);
+      }
     } catch (e) { console.warn('clearAuthState failed', e);}
 }
 
@@ -244,21 +249,35 @@ class IncidentElement extends HTMLElement {
         try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
 
         // persist for this owner (or generic if uid missing)
-        if (uid) {
-          localStorage.setItem(`oauth_access_token_${uid}`, token);
-          localStorage.setItem('oauth_owner', uid);
+       // persist for this owner (or generic if uid missing)
+      if (uid) {
+        localStorage.setItem(`oauth_access_token_${uid}`, token);
+        localStorage.setItem('oauth_owner', uid);
+      } else {
+        localStorage.setItem('oauth_access_token', token);
+        localStorage.removeItem('oauth_owner');
+      }
+
+      // mark completion time so refreshAuthState's grace window works
+      try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) { /* ignore */ }
+
+      // notify same-tab listeners and other tabs
+      try {
+        // same-tab: dispatch a custom event so listeners in this tab react immediately
+        window.dispatchEvent(new Event('oauth:token'));
+
+        // cross-tab: use BroadcastChannel and close it after posting
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('incident-auth');
+          bc.postMessage('signed-in');
+          bc.close();
         } else {
-          localStorage.setItem('oauth_access_token', token);
-          localStorage.removeItem('oauth_owner');
+          localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
         }
-
-        // notify other tabs and re-evaluate in-place
-        if ('BroadcastChannel' in window) new BroadcastChannel('incident-auth').postMessage('signed-in');
-        else localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
-
-        try { await this.refreshAuthState(); } catch (e) { console.warn('refresh after callback failed', e); }
-        this.renderList();
-  } catch (e){}
+      } catch (e) {
+        console.warn('notify after token persist failed', e);
+      } 
+    } catch (e) {}
 }
 
   signOut() {
@@ -357,19 +376,6 @@ class IncidentElement extends HTMLElement {
       this._cachedUserRoles = [];
     }
 
-    // Listen for oauth token events (callback will dispatch)
-    window.addEventListener('oauth:token', () => {
-      if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
-      this._uiUpdateTimer = setTimeout(() => {
-        this._uiUpdateTimer = null;
-        this.refreshAuthState();
-        this.refreshAuthState().then(() => {
-          // ensure UI recomputes edit visibility immediately
-          try { this.renderList(); } catch (e) {}
-        });
-      }, 250);
-    });
-
     window.addEventListener('focus', () => {
       // small debounce
       if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
@@ -398,22 +404,7 @@ class IncidentElement extends HTMLElement {
             }, 250);
           }
         };
-      } else {
-        window.addEventListener('storage', (e) => {
-        if (!e) return;
-        if (e.key === 'incident-auth-signal') {
-          // signal format: "signed-in:ts" or "signed-out:ts"
-          console.log('incident-auth-signal', e.newValue);
-          if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
-          this._uiUpdateTimer = setTimeout(() => { this._uiUpdateTimer = null; this.refreshAuthState(); }, 250);
-          return;
-        }
-        if (e.key === 'oauth_access_token' || (e.key && e.key.startsWith('oauth_access_token_')) || e.key === 'oauth_owner') {
-          if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
-          this._uiUpdateTimer = setTimeout(() => { this._uiUpdateTimer = null; this.refreshAuthState(); }, 250);
-        }
-      });
-      }
+      } 
     } catch (e) {
       console.warn('Cross-tab auth propagation setup failed', e);
     }
@@ -649,7 +640,7 @@ class IncidentElement extends HTMLElement {
     } catch (e) {
       console.error('Failed to save PKCE verifier/state to localStorage', e);
       try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
-      throw err;
+      throw e;
     }
   }
 
