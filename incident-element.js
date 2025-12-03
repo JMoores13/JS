@@ -22,6 +22,14 @@ function generateCodeVerifier() {
     .replace(/=+$/, '');
 }
 
+// open a centered popup (width/height adjustable)
+function openCenteredPopup(url, title = 'Sign in', w = 600, h = 700) {
+  const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+  const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+  const opts = `toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=${w},height=${h},top=${top},left=${left}`;
+  return window.open(url, title, opts);
+}
+
 // Helper to remove the local storage variables (used for explicit sign-out)
 function clearAuthState() {
     try {
@@ -291,6 +299,27 @@ class IncidentElement extends HTMLElement {
       // mark completion time so refreshAuthState's grace window works
       try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) { /* ignore */ }
 
+      // Notify opener window (same-origin) that auth completed
+      try {
+        const msg = { type: 'incident-auth', status: 'signed-in', ts: Date.now() };
+        // If opened as a popup, window.opener exists and is same-origin
+        if (window.opener && typeof window.opener.postMessage === 'function') {
+          window.opener.postMessage(msg, window.location.origin);
+        } else if ('BroadcastChannel' in window) {
+          // fallback: broadcast to other tabs
+          const bc = new BroadcastChannel('incident-auth');
+          bc.postMessage('signed-in');
+          bc.close();
+        } else {
+          localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
+        }
+      } catch (e) {
+        console.warn('notify opener failed', e);
+      }
+
+      // then close the popup
+      try { window.close(); } catch (e) { /* ignore */ }
+
       // notify same-tab listeners and other tabs
       try {
         // same-tab: dispatch a custom event so listeners in this tab react immediately
@@ -378,6 +407,25 @@ class IncidentElement extends HTMLElement {
     const callbackPath = new URL(OAUTH2.redirectUri).pathname;
     const urlParams = new URL(window.location.href).searchParams;
     const hasCode = urlParams.has('code');
+
+    this._onWindowMessage = (ev) => {
+      try {
+        // ensure message is from same origin and expected shape
+        if (ev.origin !== window.location.origin) return;
+        const data = ev.data || {};
+        if (data && data.type === 'incident-auth' && data.status === 'signed-in') {
+          // cleanup popup flag
+          try { sessionStorage.removeItem('oauth_popup_open'); } catch (e) {}
+          // small debounce then refresh
+          if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+          this._uiUpdateTimer = setTimeout(() => {
+            this._uiUpdateTimer = null;
+            this.refreshAuthState();
+          }, 100);
+        }
+      } catch (e) { console.warn('message handler error', e); }
+    };
+    window.addEventListener('message', this._onWindowMessage, false);
 
     if (location.pathname === callbackPath && hasCode) {
       // run the callback handler and stop further startup logic for this run
@@ -471,6 +519,7 @@ class IncidentElement extends HTMLElement {
     try {
       if (this._onStorageAuth) window.removeEventListener('storage', this._onStorageAuth);
       if (this._onOauthToken) window.removeEventListener('oauth:token', this._onOauthToken);
+      if (this._onWindowMessage) window.removeEventListener('message', this._onWindowMessage);
       if (this._bc) { this._bc.close(); this._bc = null; }
     } catch (e) {  }
   }
@@ -688,9 +737,21 @@ class IncidentElement extends HTMLElement {
         authorizeUrl
       });
 
+      // instead of window.location.href = authorizeUrl;
+      const popup = openCenteredPopup(authorizeUrl, 'Sign in', 600, 700);
+
+      // mark in-progress as before
       sessionStorage.setItem('oauth_in_progress', String(Date.now()));
 
-      window.location.href = authorizeUrl;
+      // Optionally monitor popup closed state and fallback to full redirect if blocked
+      if (!popup) {
+        // popup blocked — fall back to full redirect
+        window.location.href = authorizeUrl;
+      } else {
+        // keep a reference so opener can listen for messages from popup
+        // store a small flag so other tabs know a popup is in progress (optional)
+        try { sessionStorage.setItem('oauth_popup_open', '1'); } catch (e) {}
+      }
 
     } catch (e) {
       console.error('Failed to save PKCE verifier/state to localStorage', e);
