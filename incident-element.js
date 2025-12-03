@@ -336,6 +336,12 @@ class IncidentElement extends HTMLElement {
       } catch (e) {
         console.warn('notify after token persist failed', e);
       } 
+
+      if (window.opener && window.opener !== window) {
+        window.opener.postMessage({ type: 'incident-auth', status: 'signed-in' }, window.location.origin);
+        setTimeout(() => window.close(), 300);
+      }
+
       // Cleanup PKCE artifacts and in-progress flag (callback complete)
       try { localStorage.removeItem('pkce_verifier'); } catch (e) {}
       try { localStorage.removeItem('pkce_state'); } catch (e) {}
@@ -737,21 +743,13 @@ class IncidentElement extends HTMLElement {
         authorizeUrl
       });
 
-      // instead of window.location.href = authorizeUrl;
-      const popup = openCenteredPopup(authorizeUrl, 'Sign in', 600, 700);
+     const popup = window.open(authorizeUrl, 'Sign in', 'width=600,height=700,resizable=yes,scrollbars=yes');
+      if (!popup) {
+        window.location.href = authorizeUrl; // fallback if popup blocked
+      }
 
       // mark in-progress as before
       sessionStorage.setItem('oauth_in_progress', String(Date.now()));
-
-      // Optionally monitor popup closed state and fallback to full redirect if blocked
-      if (!popup) {
-        // popup blocked — fall back to full redirect
-        window.location.href = authorizeUrl;
-      } else {
-        // keep a reference so opener can listen for messages from popup
-        // store a small flag so other tabs know a popup is in progress (optional)
-        try { sessionStorage.setItem('oauth_popup_open', '1'); } catch (e) {}
-      }
 
     } catch (e) {
       console.error('Failed to save PKCE verifier/state to localStorage', e);
