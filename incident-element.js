@@ -173,9 +173,6 @@ class IncidentElement extends HTMLElement {
     window.addEventListener('oauth:token', this._onOauthToken);
   }
 
-
-
-
   async handleCallback(){
       try {
         const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || 0);
@@ -277,7 +274,29 @@ class IncidentElement extends HTMLElement {
       } catch (e) {
         console.warn('notify after token persist failed', e);
       } 
-    } catch (e) {}
+      // Cleanup PKCE artifacts and in-progress flag (callback complete)
+      try { localStorage.removeItem('pkce_verifier'); } catch (e) {}
+      try { localStorage.removeItem('pkce_state'); } catch (e) {}
+      try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+
+      // Refresh auth state and UI in this element
+      try {
+        await this.refreshAuthState();
+      } catch (e) {
+        console.warn('refresh after callback failed', e);
+      }
+      try { this.renderList(); } catch (e) {}
+
+      // Remove code/state from URL so connectedCallback won't re-run callback logic
+      try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
+
+    } catch (e) {
+      console.warn('handleCallback failed', e);
+      // best-effort cleanup on error
+      try { sessionStorage.removeItem('oauth_in_progress'); } catch (err) {}
+      try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (err) {}
+
+    } 
 }
 
   signOut() {
@@ -297,7 +316,9 @@ class IncidentElement extends HTMLElement {
     // Notify other tabs (mirrors clearAuthState behavior)
     try {
       if ('BroadcastChannel' in window) {
-        new BroadcastChannel('incident-auth').postMessage('signed-out');
+        const bc = new BroadcastChannel('incident-auth');
+        bc.postMessage('signed-out');
+        bc.close();
       } else {
         localStorage.setItem('incident-auth-signal', `signed-out:${Date.now()}`);
       }
