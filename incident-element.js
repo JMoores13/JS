@@ -126,6 +126,51 @@ class IncidentElement extends HTMLElement {
     return editKeys.some(k => Object.prototype.hasOwnProperty.call(actions, k));
   }
 
+  _connectedAuthListeners() {
+  // Called once from connectedCallback after initial setup
+  // Storage event handler for cross-tab changes (fallback to BroadcastChannel)
+  this._onStorageAuth = (e) => {
+    if (!e || !e.key) return;
+
+    // Keys that should trigger a refresh
+    const interestingKeys = [
+      'oauth_access_token',
+      'oauth_owner',
+      'pkce_verifier',
+      'pkce_state',
+      'oauth_in_progress',
+      'oauth_completed_at',
+      // any owner-scoped tokens
+    ];
+
+    // If an owner-scoped token was added/removed, key will start with oauth_access_token_
+    const isOwnerToken = e.key.startsWith('oauth_access_token_');
+
+    if (interestingKeys.includes(e.key) || isOwnerToken || e.key === 'incident-auth-signal') {
+      if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+      this._uiUpdateTimer = setTimeout(() => {
+        this._uiUpdateTimer = null;
+        try { this.refreshAuthState(); } catch (err) { console.warn('refreshAuthState failed from storage event', err); }
+      }, 150);
+    }
+  };
+
+  window.addEventListener('storage', this._onStorageAuth, false);
+
+    // Also listen for custom oauth events dispatched on window (you already dispatch 'oauth:token')
+    this._onOauthToken = () => {
+      if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+      this._uiUpdateTimer = setTimeout(() => {
+        this._uiUpdateTimer = null;
+        try { this.refreshAuthState(); } catch (err) { console.warn('refreshAuthState failed from oauth:token', err); }
+      }, 150);
+    };
+    window.addEventListener('oauth:token', this._onOauthToken);
+  }
+
+
+
+
   async handleCallback(){
       try {
         const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || 0);
@@ -372,6 +417,16 @@ class IncidentElement extends HTMLElement {
     } catch (e) {
       console.warn('Cross-tab auth propagation setup failed', e);
     }
+
+    this._connectedAuthListeners();
+  }
+
+  disconnectedCallback() {
+    try {
+      if (this._onStorageAuth) window.removeEventListener('storage', this._onStorageAuth);
+      if (this._onOauthToken) window.removeEventListener('oauth:token', this._onOauthToken);
+      if (this._bc) { this._bc.close(); this._bc = null; }
+    } catch (e) {  }
   }
 
   async loadData() {
@@ -399,9 +454,6 @@ class IncidentElement extends HTMLElement {
 
   async refreshAuthState() {
     const token = getAccessToken();
-
-    // Ensure owner is set to the current user (idempotent)
-    try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
 
     // Respect in-progress flows
     const inProgress = Number(sessionStorage.getItem('oauth_in_progress') || '0');
