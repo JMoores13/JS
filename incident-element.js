@@ -81,6 +81,39 @@ function getAccessToken() {
   }
 }
 
+// Run once on startup
+function interceptLogoutLinks() {
+  // Delegate clicks so dynamically generated links are handled too
+  document.addEventListener('click', (ev) => {
+    // Find the nearest anchor
+    const a = ev.target.closest && ev.target.closest('a[href]');
+    if (!a) return;
+
+    // Match the portal logout path (adjust if your path differs)
+    const logoutPath = '/c/portal/logout';
+    const href = a.getAttribute('href') || '';
+    // handle absolute or relative
+    const url = new URL(href, location.origin);
+    if (url.pathname === logoutPath) {
+      // Prevent immediate navigation so we can notify other tabs
+      ev.preventDefault();
+
+      try {
+        // Clear client-side auth state and notify other tabs
+        clearAuthState(); // your existing helper already posts signed-out
+      } catch (e) {
+        console.warn('interceptLogoutLinks: clearAuthState failed', e);
+      }
+
+      // Give a tiny moment for storage/broadcast to propagate, then navigate
+      setTimeout(() => {
+        // Use location.assign to perform the logout navigation
+        location.assign(url.toString());
+      }, 50);
+    }
+  }, { capture: true }); // capture ensures we intercept before default handlers
+}
+
 // Global helper to call element.startPkceAuth safely
 window.startPkceAuth = () => {
   const el = document.querySelector('incident-element');
@@ -340,6 +373,7 @@ class IncidentElement extends HTMLElement {
   }
   
   async connectedCallback() {
+    interceptLogoutLinks();
     // in connectedCallback: replace the probe block with this simple guard
     const callbackPath = new URL(OAUTH2.redirectUri).pathname;
     const urlParams = new URL(window.location.href).searchParams;
