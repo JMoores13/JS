@@ -22,14 +22,6 @@ function generateCodeVerifier() {
     .replace(/=+$/, '');
 }
 
-// open a centered popup (width/height adjustable)
-function openCenteredPopup(url, title = 'Sign in', w = 600, h = 700) {
-  const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
-  const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
-  const opts = `toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=${w},height=${h},top=${top},left=${left}`;
-  return window.open(url, title, opts);
-}
-
 // Helper to remove the local storage variables (used for explicit sign-out)
 function clearAuthState() {
     try {
@@ -122,17 +114,6 @@ function interceptLogoutLinks() {
   }, { capture: true }); // capture ensures we intercept before default handlers
 }
 
-// Global helper to call element.startPkceAuth safely
-window.startPkceAuth = () => {
-  const el = document.querySelector('incident-element');
-  if (el && typeof el.startPkceAuth === 'function') {
-    console.log('window.startPkceAuth: invoking element.startPkceAuth()');
-    el.startPkceAuth();
-  } else {
-    console.warn('window.startPkceAuth: incident-element not found or method missing');
-  }
-};
-
 async function apiFetch(url, opts = {}) {
   const token = getAccessToken();
   const headers = new Headers(opts.headers || {});
@@ -165,11 +146,6 @@ class IncidentElement extends HTMLElement {
     this.searchDebounceTimer = null;
     this.editAccessCache = new Map();
     this._uiUpdateTimer = null;
-  }
-
-  _isActionsEditable(actions = {}) {
-    const editKeys = ['update','edit','modify','patch','put','UPDATE','EDIT','update_entry','edit_entry'];
-    return editKeys.some(k => Object.prototype.hasOwnProperty.call(actions, k));
   }
 
   _connectedAuthListeners() {
@@ -366,46 +342,6 @@ class IncidentElement extends HTMLElement {
 
     } 
 }
-
-  signOut() {
-    try {
-      // Clear all stored auth artifacts
-      clearAuthState();
-    } catch (e) {
-      console.warn('signOut: clearAuthState failed', e);
-    }
-
-    // Clear in-memory cached roles and any edit caches
-    try {
-      this._cachedUserRoles = [];
-      this.editAccessCache && this.editAccessCache.clear && this.editAccessCache.clear();
-    } catch (e) {  }
-
-    // Notify other tabs (mirrors clearAuthState behavior)
-    try {
-      if ('BroadcastChannel' in window) {
-        const bc = new BroadcastChannel('incident-auth');
-        bc.postMessage('signed-out');
-        bc.close();
-      } else {
-        localStorage.setItem('incident-auth-signal', `signed-out:${Date.now()}`);
-      }
-    } catch (e) {  }
-
-    // Small debounce to avoid races with storage events
-    if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
-    this._uiUpdateTimer = setTimeout(async () => {
-      this._uiUpdateTimer = null;
-      try {
-        // Force re-evaluation of auth state and re-render list
-        await this.refreshAuthState();
-      } catch (e) {
-        console.warn('signOut: refreshAuthState failed', e);
-        // still re-render to remove edit links
-        try { this._cachedUserRoles = []; this.renderList(); } catch (e) {}
-      }
-    }, 50);
-  }
   
   async connectedCallback() {
     interceptLogoutLinks();
