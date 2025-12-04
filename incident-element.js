@@ -743,6 +743,21 @@ class IncidentElement extends HTMLElement {
 
     this.querySelector("#incident-list").innerHTML = listHTML;
 
+    const btnContainer = this.querySelector("#global-edit-button");
+    if (this._cachedUserRoles && this._cachedUserRoles.some(r =>
+        ["administrator","editor","incident_editor"].includes(r.key))) {
+      btnContainer.innerHTML = `
+        <button id="editor-view-btn" class="editor-button">
+          Open Editor View
+        </button>
+      `;
+      this.querySelector("#editor-view-btn").addEventListener("click", () => {
+        location.assign("/web/incident-reporting-tool/editor-view");
+      });
+    } else {
+      btnContainer.innerHTML = "";
+    }
+
     this.expandedIds.forEach((id) => {
       const incident = this.allItems.find(i => String(i.id) === id);
       if (!incident) return;
@@ -790,21 +805,6 @@ class IncidentElement extends HTMLElement {
         this.renderList();
       });
     }
-     // After incident list is drawn:
-    const btnContainer = this.querySelector("#global-edit-button");
-    if (this._canEdit) {
-      btnContainer.innerHTML = `
-        <button id="editor-view-btn" class="editor-button">
-          Open Editor View
-        </button>
-      `;
-      this.querySelector("#editor-view-btn").addEventListener("click", () => {
-        location.assign("/web/incident-reporting-tool/editor-view");
-      });
-    } else {
-      btnContainer.innerHTML = ""; 
-    }
-
 
   }
 
