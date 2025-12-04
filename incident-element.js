@@ -275,6 +275,27 @@ class IncidentElement extends HTMLElement {
       // mark completion time so refreshAuthState's grace window works
       try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) { /* ignore */ }
 
+      // Notify opener window (same-origin) that auth completed
+      try {
+        const msg = { type: 'incident-auth', status: 'signed-in', ts: Date.now() };
+        // If opened as a popup, window.opener exists and is same-origin
+        if (window.opener && typeof window.opener.postMessage === 'function') {
+          window.opener.postMessage(msg, window.location.origin);
+        } else if ('BroadcastChannel' in window) {
+          // fallback: broadcast to other tabs
+          const bc = new BroadcastChannel('incident-auth');
+          bc.postMessage('signed-in');
+          bc.close();
+        } else {
+          localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
+        }
+      } catch (e) {
+        console.warn('notify opener failed', e);
+      }
+
+      // then close the popup
+      try { window.close(); } catch (e) { /* ignore */ }
+
       // notify same-tab listeners and other tabs
       try {
         // same-tab: dispatch a custom event so listeners in this tab react immediately
