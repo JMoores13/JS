@@ -133,6 +133,7 @@ class CommentElement extends HTMLElement {
         </div>
         <div class="incident-description">${i.description || "—"}</div>
         <div class="incident-comments">${commentsHTML || "<div>No comments yet.</div>"}</div>
+        <div class="edit-link"> const editUrl = "/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}" </div>
       </div>
     `;
   }
