@@ -670,6 +670,7 @@ class IncidentElement extends HTMLElement {
 
       const authorizeUrl = `${OAUTH2.authorizeUrl}?${params.toString()}`;
       console.log('Authorize URL:', authorizeUrl);
+
       // mark in-progress with timestamp
 
       console.log('PKCE saved before redirect', {
@@ -681,6 +682,10 @@ class IncidentElement extends HTMLElement {
 
       // mark in-progress as before
       sessionStorage.setItem('oauth_in_progress', String(Date.now()));
+          
+    // redirect in-tab, no popup
+    location.assign(authorizeUrl);
+
 
     } catch (e) {
       console.error('Failed to save PKCE verifier/state to localStorage', e);
