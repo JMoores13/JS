@@ -275,27 +275,6 @@ class IncidentElement extends HTMLElement {
       // mark completion time so refreshAuthState's grace window works
       try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) { /* ignore */ }
 
-      // Notify opener window (same-origin) that auth completed
-      try {
-        const msg = { type: 'incident-auth', status: 'signed-in', ts: Date.now() };
-        // If opened as a popup, window.opener exists and is same-origin
-        if (window.opener && typeof window.opener.postMessage === 'function') {
-          window.opener.postMessage(msg, window.location.origin);
-        } else if ('BroadcastChannel' in window) {
-          // fallback: broadcast to other tabs
-          const bc = new BroadcastChannel('incident-auth');
-          bc.postMessage('signed-in');
-          bc.close();
-        } else {
-          localStorage.setItem('incident-auth-signal', `signed-in:${Date.now()}`);
-        }
-      } catch (e) {
-        console.warn('notify opener failed', e);
-      }
-
-      // then close the popup
-      try { window.close(); } catch (e) { /* ignore */ }
-
       // notify same-tab listeners and other tabs
       try {
         // same-tab: dispatch a custom event so listeners in this tab react immediately
@@ -356,8 +335,6 @@ class IncidentElement extends HTMLElement {
         if (ev.origin !== window.location.origin) return;
         const data = ev.data || {};
         if (data && data.type === 'incident-auth' && data.status === 'signed-in') {
-          // cleanup popup flag
-          try { sessionStorage.removeItem('oauth_popup_open'); } catch (e) {}
           // small debounce then refresh
           if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
           this._uiUpdateTimer = setTimeout(() => {
@@ -680,11 +657,6 @@ class IncidentElement extends HTMLElement {
         pkce_state: !!localStorage.getItem('pkce_state'),
         authorizeUrl
       });
-
-     const popup = window.open(authorizeUrl, 'Sign in', 'width=600,height=700,resizable=yes,scrollbars=yes');
-      if (!popup) {
-        window.location.href = authorizeUrl; // fallback if popup blocked
-      }
 
       // mark in-progress as before
       sessionStorage.setItem('oauth_in_progress', String(Date.now()));
