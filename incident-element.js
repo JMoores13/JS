@@ -378,6 +378,7 @@ class IncidentElement extends HTMLElement {
     this.innerHTML = `
       <style>
       .incident-entry { padding: 0.75em 0; border-bottom: 1px solid #ccc; }
+      .editor-button { background-color: mediumblue; color: white; border: none; padding: 0.5em 1em; border-radius: 4px; margin: 1em 0; }
       .comment-body { margin-top: 0.25em; padding-left: 1em; font-size: 1em; }
       .comment-title { font-size: 1em; font-weight: bold; }
       .incident-title { font-size: 1.1em; font-weight: bold; margin-bottom: 0.5em; }
@@ -401,6 +402,7 @@ class IncidentElement extends HTMLElement {
         <input type="text" id="search-input" placeholder="Search"/>
       </div>
       <div id="incident-list"></div>
+      <div id="global-edit-button"></div>
     `;
 
   
@@ -788,6 +790,22 @@ class IncidentElement extends HTMLElement {
         this.renderList();
       });
     }
+     // After incident list is drawn:
+    const btnContainer = this.querySelector("#global-edit-button");
+    if (this._canEdit) {
+      btnContainer.innerHTML = `
+        <button id="editor-view-btn" class="editor-button">
+          Open Editor View
+        </button>
+      `;
+      this.querySelector("#editor-view-btn").addEventListener("click", () => {
+        location.assign("/web/incident-reporting-tool/editor-view");
+      });
+    } else {
+      btnContainer.innerHTML = ""; 
+    }
+
+
   }
 
   renderIncident(i) {
