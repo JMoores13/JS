@@ -133,7 +133,7 @@ class CommentElement extends HTMLElement {
         </div>
         <div class="incident-description">${i.description || "—"}</div>
         <div class="incident-comments">${commentsHTML || "<div>No comments yet.</div>"}</div>
-        <div class="edit-link"> <a href="#" data-id="${i.id}" > /web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}</a> </div>
+        <div class="edit-link"> <a href="/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}" data-id="${i.id}"> Edit </a> </div>
       </div>
     `;
   }
