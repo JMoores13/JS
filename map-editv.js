@@ -78,8 +78,8 @@ connectedCallback() {
           document.head.appendChild(script);
         });
       }
-      if (!IncidentMapElement.fullscreenLoaded) {
-        IncidentMapElement.fullscreenLoaded = true;
+      if (!IncidentMapEdElement.fullscreenLoaded) {
+        IncidentMapEdElement.fullscreenLoaded = true;
   
         const fsCSS = document.createElement("link");
         fsCSS.rel = "stylesheet";
