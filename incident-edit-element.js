@@ -816,7 +816,7 @@ class IncidentEditElement extends HTMLElement {
     });
 
     const isExpanded = this.expandedIds.has(String(i.id));
-    const editUrl = `/web/incident-reporting-tool/edit-incident?objectEntryId=${i.id}`;
+    const editUrl = `/web/incident-reporting-tool/edit-incident-editor-view?objectEntryId=${i.id}`;
     console.debug('renderIncident', { id: i.id, oauth_owner: localStorage.getItem('oauth_owner'), token: getAccessToken()?.slice?.(0,16) || null, cachedRoles: this._cachedUserRoles });
 
     const normalizedRoles = Array.isArray(this._cachedUserRoles) ? (this._cachedUserRoles || []).map(r => ({
