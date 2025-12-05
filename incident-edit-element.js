@@ -400,7 +400,6 @@ class IncidentEditElement extends HTMLElement {
         <input type="text" id="search-input" placeholder="Search"/>
       </div>
       <div id="incident-list"></div>
-      <div id="global-edit-button"></div>
     `;
 
   
