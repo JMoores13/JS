@@ -419,9 +419,7 @@ class IncidentElement extends HTMLElement {
     } catch (e) {
       console.warn('validateStoredOwner top-level catch', e);
     }
-
-    try {
-      // best-effort synchronous revalidation
+    
       this._cachedUserRoles = [];
       try {
         await probeServerBuildAndClearIfChanged();
