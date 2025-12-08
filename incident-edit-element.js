@@ -693,6 +693,41 @@ class IncidentEditElement extends HTMLElement {
     }
   }
 
+  async deleteIncident(id) {
+    // Confirm deterministically
+    const ok = window.confirm("Delete this incident permanently?");
+    if (!ok) return;
+
+    // Disable UI affordance temporarily
+    const btn = this.querySelector(`.delete-btn[data-id="${id}"]`);
+    if (btn) { btn.disabled = true; btn.textContent = "Deleting…"; }
+
+    try {
+      const res = await apiFetch(`/o/c/incidents/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        console.warn("Delete failed", id, res.status);
+        // 401: token bad or not permitted. 404: entry already gone.
+        alert(`Delete failed (${res.status}).`);
+        return;
+      }
+
+      // Optimistic local state update
+      this.expandedIds.delete(String(id));
+      this.allItems = this.allItems.filter(i => String(i.id) !== String(id));
+
+      // Keep pagination sane if the page became empty
+      const totalPages = Math.max(1, Math.ceil(this.allItems.length / this.pageSize));
+      if (this.currentPage >= totalPages) this.currentPage = totalPages - 1;
+
+      this.renderList();
+    } catch (e) {
+      console.warn("Delete error", e);
+      alert("Delete error. See console for details.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Delete"; }
+    }
+  }
+
   renderList() {
     const start = this.currentPage * this.pageSize;
     const end = start + this.pageSize;
@@ -779,6 +814,16 @@ class IncidentEditElement extends HTMLElement {
       });
     });
 
+    // Delete buttons
+    this.querySelectorAll(".delete-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const id = btn.dataset.id;
+        if (!id) return;
+        this.deleteIncident(id);
+      });
+    });
+
     const pageSizeEl = this.querySelector("#page-size");
     if (pageSizeEl) {
       pageSizeEl.addEventListener("change", (e) => {
@@ -825,9 +870,9 @@ class IncidentEditElement extends HTMLElement {
     const canEdit = Boolean(hasToken && apiRoleAllow);
 
     const editChunk = canEdit
-      ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>`
+       ? `&nbsp; | &nbsp;<a href="${editUrl}" class="edit-link">Edit</a>
+      &nbsp; | &nbsp;<button class="delete-btn" data-id="${i.id}">Delete</button>`
       : "";
-
     const capitalize = (str) =>
       typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
