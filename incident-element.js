@@ -179,17 +179,35 @@ async function apiFetch(url, opts = {}) {
   if (!res.ok) {
     const www = res.headers.get('www-authenticate');
     console.warn(`apiFetch: ${url} returned ${res.status}`, { www, authHeader: token ? `Bearer ${token.slice(0,8)}...` : '<none>' });
-    // If unauthorized, clear token and PKCE artifacts so UI can't rely on a bad value
-    if (res.status === 401) {
-      try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
-      try { localStorage.removeItem('oauth_owner'); } catch (e) {}
-      // Do not remove pkce_verifier/state here — callback must be able to read them if in progress
-    }
-    if (res.status >= 500) {
+
+    // If unauthorized, aggressively clear all client-side tokens and PKCE artifacts so UI can't rely on stale values
+    if (res.status === 401 || res.status === 403) {
       try {
-        localStorage.removeItem('oauth_access_token'); // optional: force reauth
-      } catch (e) {}
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          // remove any oauth_access_token keys (generic and owner-scoped)
+          if (k.startsWith('oauth_access_token')) {
+            try { localStorage.removeItem(k); } catch (e) {}
+          }
+        }
+      } catch (e) { console.warn('apiFetch: clearing owner tokens failed', e); }
+
+      try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+      try { localStorage.removeItem('oauth_access_token_expires_at'); } catch (e) {}
+      try { localStorage.removeItem('pkce_verifier'); } catch (e) {}
+      try { localStorage.removeItem('pkce_state'); } catch (e) {}
+      // clear in-progress marker and notify other tabs
+      try { sessionStorage.removeItem('oauth_in_progress'); } catch (e) {}
+      try { localStorage.setItem('incident-auth-signal', `cleared-401:${Date.now()}`); } catch (e) {}
+
+      // Optionally dispatch an event so UI can react immediately
+      try { window.dispatchEvent(new Event('incident-auth-cleared')); } catch (e) {}
+    }
+
+    if (res.status >= 500) {
       try { window.dispatchEvent(new Event('incident-server-error')); } catch (e) {}
+      try { clearAuthState(); } catch (e) { console.warn('clearAuthState call failed', e); }
     }
   }
   return res;
@@ -413,13 +431,34 @@ class IncidentElement extends HTMLElement {
   async connectedCallback() {
     interceptLogoutLinks();
 
+    try {
+      const generic = localStorage.getItem('oauth_access_token');
+      const owner = localStorage.getItem('oauth_owner');
+      if (generic && !owner) {
+        console.warn('Startup: found generic oauth_access_token with no oauth_owner — clearing token and PKCE artifacts');
+        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+        try { localStorage.removeItem('oauth_access_token_expires_at'); } catch (e) {}
+        try { localStorage.removeItem('pkce_verifier'); } catch (e) {}
+        try { localStorage.removeItem('pkce_state'); } catch (e) {}
+        // small signal so other tabs can react
+        try { localStorage.setItem('incident-auth-signal', `cleared-stale:${Date.now()}`); } catch (e) {}
+      }
+    } catch (e) { console.warn('startup defensive clear failed', e); }
+
+    try {
+      if (!localStorage.getItem('oauth_owner') && !localStorage.getItem('oauth_access_token')) {
+        // small delay to allow other tabs to observe storage changes
+        setTimeout(() => { try { location.reload(); } catch (e) {} }, 50);
+      }
+    } catch (e) {}
+
     // ensure stored owner is validated before continuing startup
     try {
       await validateStoredOwner().catch(e => console.warn('validateStoredOwner failed', e));
     } catch (e) {
       console.warn('validateStoredOwner top-level catch', e);
     }
-    
+
       this._cachedUserRoles = [];
       try {
         await probeServerBuildAndClearIfChanged();
