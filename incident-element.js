@@ -413,14 +413,22 @@ class IncidentElement extends HTMLElement {
   async connectedCallback() {
     interceptLogoutLinks();
 
-    try { validateStoredOwner().catch(e => console.warn('validateStoredOwner failed', e)); } catch (e) {}
+    // ensure stored owner is validated before continuing startup
+    try {
+      await validateStoredOwner().catch(e => console.warn('validateStoredOwner failed', e));
+    } catch (e) {
+      console.warn('validateStoredOwner top-level catch', e);
+    }
 
     try {
       // best-effort synchronous revalidation
       this._cachedUserRoles = [];
-      // call refreshAuthState
+      try {
+        await probeServerBuildAndClearIfChanged();
+      } catch (e) {
+        console.warn('server probe failed (initial):', e);
+      }
       this.refreshAuthState().catch(e => console.warn('initial refreshAuthState failed', e));
-    } catch (e) { console.warn('initial revalidation failed', e); }
 
     // in connectedCallback: replace the probe block with this simple guard
     const callbackPath = new URL(OAUTH2.redirectUri).pathname;
