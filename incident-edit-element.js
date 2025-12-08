@@ -376,7 +376,7 @@ class IncidentEditElement extends HTMLElement {
     this.innerHTML = `
       <style>
       .incident-entry { padding: 0.75em 0; border-bottom: 1px solid #ccc; }
-      .editor-button { background-color: #0000eed7; color: white; border: none; padding: 0.5em 1em; border-radius: 4px; margin: 1em 0; }
+      .editor-button { background-color: #0000d3a2; color: white; border: none; padding: 0.5em 1em; border-radius: 4px; margin: 1em 0; }
       .delete-btn { background: none; border: none; color: #007bff; text-decoration: none; cursor: pointer; padding: 0; }
       .delete-btn:hover { text-decoration: underline; }
       .delete-btn:active { color: #0056b3; }
