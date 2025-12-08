@@ -141,7 +141,10 @@ async function apiFetch(url, opts = {}) {
       // Do not remove pkce_verifier/state here — callback must be able to read them if in progress
     }
     if (res.status >= 500) {
-      try { window.dispatchEvent(new Event('oauth:token')); } catch (e) {}
+      try {
+        localStorage.removeItem('oauth_access_token'); // optional: force reauth
+      } catch (e) {}
+      try { window.dispatchEvent(new Event('incident-server-error')); } catch (e) {}
     }
   }
   return res;
@@ -363,6 +366,14 @@ class IncidentElement extends HTMLElement {
   
   async connectedCallback() {
     interceptLogoutLinks();
+
+    try {
+      // best-effort synchronous revalidation
+      this._cachedUserRoles = [];
+      // call refreshAuthState
+      this.refreshAuthState().catch(e => console.warn('initial refreshAuthState failed', e));
+    } catch (e) { console.warn('initial revalidation failed', e); }
+
     // in connectedCallback: replace the probe block with this simple guard
     const callbackPath = new URL(OAUTH2.redirectUri).pathname;
     const urlParams = new URL(window.location.href).searchParams;
@@ -448,7 +459,17 @@ class IncidentElement extends HTMLElement {
         this.refreshAuthState();
       }, 200);
     });
-  
+
+    this._onServerError = () => {
+      this._cachedUserRoles = [];
+      // small debounce
+      if (this._uiUpdateTimer) clearTimeout(this._uiUpdateTimer);
+      this._uiUpdateTimer = setTimeout(() => {
+        this._uiUpdateTimer = null;
+        this.refreshAuthState();
+      }, 150);
+    };
+    window.addEventListener('incident-server-error', this._onServerError);
 
     // Cross-tab propagation
     try {
@@ -509,6 +530,8 @@ class IncidentElement extends HTMLElement {
 
   async refreshAuthState() {
     this._cachedUserRoles = [];
+    try { this.renderList(); } catch (e) {}
+
     const token = getAccessToken();
 
     // Respect in-progress flows
