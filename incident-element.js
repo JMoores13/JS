@@ -206,6 +206,7 @@ class IncidentElement extends HTMLElement {
     this.searchDebounceTimer = null;
     this.editAccessCache = new Map();
     this._uiUpdateTimer = null;
+    this._rolesValidated = false;
   }
 
   _connectedAuthListeners() {
@@ -579,6 +580,16 @@ class IncidentElement extends HTMLElement {
     this._cachedUserRoles = [];
     try { this.renderList(); } catch (e) {}
 
+      try {
+        console.log('refreshAuthState: start', {
+          tokenPreview: (() => { const t = getAccessToken(); return t ? `${t.slice(0,8)}...` : null; })(),
+          oauth_owner: localStorage.getItem('oauth_owner'),
+          expiresAt: localStorage.getItem('oauth_access_token_expires_at'),
+          oauth_in_progress: sessionStorage.getItem('oauth_in_progress'),
+          now: Date.now()
+        });
+      } catch (e) { console.warn('refreshAuthState: diagnostic log failed', e); }
+
     const token = getAccessToken();
 
     // Respect in-progress flows
@@ -663,6 +674,7 @@ class IncidentElement extends HTMLElement {
         name: String(r.name || r.roleName || r.label || '').toLowerCase().trim(),
         key: String(r.roleKey || r.key || r.name || '').toLowerCase().trim()
       }));
+      this._rolesValidated = true;
 
       console.log('User roles: ', this._cachedUserRoles);
     } catch (e) {
@@ -840,7 +852,7 @@ class IncidentElement extends HTMLElement {
     this.querySelector("#incident-list").innerHTML = listHTML;
 
     const btnContainer = this.querySelector("#global-edit-button");
-    if (this._cachedUserRoles && this._cachedUserRoles.some(r =>
+    if (this._rolesValidated && this._cachedUserRoles && this._cachedUserRoles.some(r =>
         ["administrator","editor","incident_editor"].includes(r.key))) {
       btnContainer.innerHTML = `
         <button id="editor-view-btn" class="editor-button">
