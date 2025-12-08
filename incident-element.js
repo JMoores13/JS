@@ -432,6 +432,20 @@ class IncidentElement extends HTMLElement {
     interceptLogoutLinks();
 
     try {
+      const callbackPath = new URL(OAUTH2.redirectUri).pathname;
+      const urlParams = new URL(window.location.href).searchParams;
+      const hasCode = urlParams.has('code');
+
+      if (location.pathname === callbackPath && hasCode) {
+        // Let handleCallback run and then bail out of connectedCallback so no probes/reloads run now.
+        await this.handleCallback();
+        return;
+      }
+    } catch (e) {
+      console.warn('callback guard failed', e);
+    }
+
+    try {
       // probeServerBuildAndClearIfChanged is defined earlier in the file
       await probeServerBuildAndClearIfChanged();
     } catch (e) {
@@ -484,11 +498,6 @@ class IncidentElement extends HTMLElement {
     }
 
       this._cachedUserRoles = [];
-      try {
-        await probeServerBuildAndClearIfChanged();
-      } catch (e) {
-        console.warn('server probe failed (initial):', e);
-      }
       this.refreshAuthState().catch(e => console.warn('initial refreshAuthState failed', e));
 
     // in connectedCallback: replace the probe block with this simple guard
