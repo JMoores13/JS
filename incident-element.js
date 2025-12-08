@@ -64,6 +64,51 @@ async function generateCodeChallenge(verifier) {
   return base64;
 }
 
+async function validateStoredOwner() {
+  try {
+    const token = getAccessToken();
+    if (!token) return;
+    // Use no-cache to avoid any intermediate caches
+    const res = await fetch('/o/headless-admin-user/v1.0/my-user-account', {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'same-origin'
+    });
+    if (!res.ok) {
+      console.log('validateStoredOwner: server rejected token', res.status);
+      // clear tokens so refreshAuthState will start PKCE
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('oauth_access_token')) localStorage.removeItem(k);
+        }
+      } catch (e) {}
+      try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+      try { localStorage.removeItem('oauth_access_token_expires_at'); } catch (e) {}
+      return;
+    }
+    const me = await res.json();
+    const currentUserId = String(me.id || me.userId || '');
+    const storedOwner = localStorage.getItem('oauth_owner');
+    console.log('validateStoredOwner: server user id', currentUserId, 'storedOwner', storedOwner);
+    if (storedOwner && storedOwner !== currentUserId) {
+      console.warn('validateStoredOwner: owner mismatch — clearing tokens');
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('oauth_access_token_') && k !== `oauth_access_token_${currentUserId}`) {
+            localStorage.removeItem(k);
+          }
+        }
+      } catch (e) {}
+      try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+      try { localStorage.setItem('oauth_owner', currentUserId); } catch (e) {}
+    }
+  } catch (e) {
+    console.warn('validateStoredOwner failed', e);
+  }
+}
+
 function getAccessToken() {
   try {
     const expiresAt = Number(localStorage.getItem('oauth_access_token_expires_at') || 0);
@@ -367,6 +412,8 @@ class IncidentElement extends HTMLElement {
   async connectedCallback() {
     interceptLogoutLinks();
 
+    try { validateStoredOwner().catch(e => console.warn('validateStoredOwner failed', e)); } catch (e) {}
+
     try {
       // best-effort synchronous revalidation
       this._cachedUserRoles = [];
@@ -591,8 +638,17 @@ class IncidentElement extends HTMLElement {
 
       if (!res.ok) {
         console.warn('refreshAuthState: token rejected by server', res.status);
-        try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+        // Clear all client-side tokens and owner markers to force reauth
+        try {
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('oauth_access_token')) {
+              localStorage.removeItem(k);
+            }
+          }
+        } catch (e) { console.warn('failed clearing owner tokens', e); }
         try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+        try { localStorage.removeItem('oauth_access_token_expires_at'); } catch (e) {}
         this._cachedUserRoles = [];
         await this.loadDataAnonymous();
         return;
