@@ -376,7 +376,7 @@ class IncidentElement extends HTMLElement {
     this.innerHTML = `
       <style>
       .incident-entry { padding: 0.75em 0; border-bottom: 1px solid #ccc; }
-      .editor-button { background-color: #0b5fff; color: white; border: none; padding: 0.5em 1em; border-radius: 4px; margin: 1em 0; }
+      .editor-button { background-color: #0b60ffff; color: white; border: none; padding: 0.5em 1em; border-radius: 4px; margin: 1em 0; }
       .comment-body { margin-top: 0.25em; padding-left: 1em; font-size: 1em; }
       .comment-title { font-size: 1em; font-weight: bold; }
       .incident-title { font-size: 1.1em; font-weight: bold; margin-bottom: 0.5em; }
