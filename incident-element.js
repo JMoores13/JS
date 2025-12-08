@@ -66,11 +66,20 @@ async function generateCodeChallenge(verifier) {
 
 function getAccessToken() {
   try {
+    const expiresAt = Number(localStorage.getItem('oauth_access_token_expires_at') || 0);
+    if (expiresAt && Date.now() >= expiresAt) {
+      try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
+      try { localStorage.removeItem('oauth_owner'); } catch (e) {}
+      try {localStorage.removeItem('oauth_access_token_expires_at'); } catch (e) {}
+      return null;
+    }
+
     const owner = localStorage.getItem('oauth_owner');
     if (owner) {
       const t = localStorage.getItem(`oauth_access_token_${owner}`);
       if (t) return t.trim();
     }
+
     // No owner set: return the generic token only (do NOT scan other owner tokens).
     const generic = localStorage.getItem('oauth_access_token');
     return generic ? generic.trim() : null;
@@ -130,6 +139,9 @@ async function apiFetch(url, opts = {}) {
       try { localStorage.removeItem('oauth_access_token'); } catch (e) {}
       try { localStorage.removeItem('oauth_owner'); } catch (e) {}
       // Do not remove pkce_verifier/state here — callback must be able to read them if in progress
+    }
+    if (res.status >= 500) {
+      try { window.dispatchEvent(new Event('oauth:token')); } catch (e) {}
     }
   }
   return res;
@@ -270,6 +282,12 @@ class IncidentElement extends HTMLElement {
       } else {
         localStorage.setItem('oauth_access_token', token);
         localStorage.removeItem('oauth_owner');
+      }
+
+      const expiresIn = Number(tokenJson.expires_in || 0);
+      if (expiresIn > 0) {
+        const expiresAt = Date.now() + expiresIn * 1000;
+        try { localStorage.setItem('oauth_access_token_expires_at', String(expiresAt)); } catch (e) {}
       }
 
       // mark completion time so refreshAuthState's grace window works
@@ -490,6 +508,7 @@ class IncidentElement extends HTMLElement {
   }
 
   async refreshAuthState() {
+    this._cachedUserRoles = [];
     const token = getAccessToken();
 
     // Respect in-progress flows
