@@ -432,6 +432,13 @@ class IncidentElement extends HTMLElement {
     interceptLogoutLinks();
 
     try {
+      // probeServerBuildAndClearIfChanged is defined earlier in the file
+      await probeServerBuildAndClearIfChanged();
+    } catch (e) {
+      console.warn('server probe failed (initial):', e);
+    }
+
+    try {
       const generic = localStorage.getItem('oauth_access_token');
       const owner = localStorage.getItem('oauth_owner');
       if (generic && !owner) {
@@ -446,9 +453,26 @@ class IncidentElement extends HTMLElement {
     } catch (e) { console.warn('startup defensive clear failed', e); }
 
     try {
-      if (!localStorage.getItem('oauth_owner') && !localStorage.getItem('oauth_access_token')) {
+      // Defensive reload guard: only reload once per tab and only if we haven't probed the server build
+      const reloadAttempted = sessionStorage.getItem('incident_reload_attempted');
+      const serverBuild = localStorage.getItem('incident_server_build');
+
+      // If there is a generic token but no owner, or if both token and owner are missing,
+      // do not blindly reload. Only reload once if we haven't tried and the server build is unknown.
+      if (!reloadAttempted && !localStorage.getItem('oauth_owner') && !localStorage.getItem('oauth_access_token')) {
+        // mark that we've attempted a reload so we don't loop
+        try { sessionStorage.setItem('incident_reload_attempted', '1'); } catch (e) {}
         // small delay to allow other tabs to observe storage changes
-        setTimeout(() => { try { location.reload(); } catch (e) {} }, 50);
+        setTimeout(() => {
+          try {
+            // If serverBuild is present we already probed; avoid reload unless build changed
+            if (!serverBuild) {
+              location.reload();
+            } else {
+              console.log('Skipping reload: serverBuild present, no tokens but probe already ran');
+            }
+          } catch (e) {}
+        }, 50);
       }
     } catch (e) {}
 
