@@ -273,7 +273,6 @@ class IncidentElement extends HTMLElement {
       try {
         const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || 0);
         if (Date.now() - completedAt < 5000){
-          history.replaceState(null, '', '/web/incident-reporting-tool/');
           return;
         }
         const url = new URL(location.href);
@@ -414,15 +413,14 @@ class IncidentElement extends HTMLElement {
       } catch (e) {
         console.warn('refresh after callback failed', e);
       }
-      try { this.renderList(); } catch (e) {}
+     try { this.renderList(); } catch (e) {}
 
     } catch (e) {
       console.warn('handleCallback failed', e);
       // best-effort cleanup on error
       try { sessionStorage.removeItem('oauth_in_progress'); } catch (err) {}
       try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (err) {}
-
-    } 
+    }
 }
   
   async connectedCallback() {
