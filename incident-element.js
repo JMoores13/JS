@@ -416,9 +416,6 @@ class IncidentElement extends HTMLElement {
       }
       try { this.renderList(); } catch (e) {}
 
-      // Remove code/state from URL so connectedCallback won't re-run callback logic
-      try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
-
     } catch (e) {
       console.warn('handleCallback failed', e);
       // best-effort cleanup on error
