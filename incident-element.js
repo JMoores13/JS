@@ -270,6 +270,23 @@ class IncidentElement extends HTMLElement {
   }
 
   async handleCallback(){
+      // Reentrancy guard: avoid handling the callback more than once in a short window
+      try {
+        const lastHandled = Number(sessionStorage.getItem('incident_oauth_handled_ts') || '0');
+        const now = Date.now();
+        const GUARD_MS = 30 * 1000; // 30 seconds
+      
+        if (lastHandled && (now - lastHandled) < GUARD_MS) {
+          // Already handled recently — clean URL if needed and bail out
+          try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
+          return;
+        }
+      
+        // Mark as handling now
+        try { sessionStorage.setItem('incident_oauth_handled_ts', String(now)); } catch (e) {}
+      } catch (e) {
+        // non-fatal: continue if sessionStorage access fails
+      }
       try {
         const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || 0);
         if (Date.now() - completedAt < 5000){
