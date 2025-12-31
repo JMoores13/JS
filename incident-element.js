@@ -431,19 +431,20 @@ class IncidentElement extends HTMLElement {
   async connectedCallback() {
     interceptLogoutLinks();
 
-    try {
-      const callbackPath = new URL(OAUTH2.redirectUri).pathname;
-      const urlParams = new URL(window.location.href).searchParams;
-      const hasCode = urlParams.has('code');
-
-      if (location.pathname === callbackPath && hasCode) {
-        // Let handleCallback run and then bail out of connectedCallback so no probes/reloads run now.
-        await this.handleCallback();
-        return;
-      }
-    } catch (e) {
-      console.warn('callback guard failed', e);
+  try {
+    const callbackPath = new URL(OAUTH2.redirectUri).pathname;
+    const urlParams = new URL(window.location.href).searchParams;
+    const hasCode = urlParams.has('code');
+  
+    if (location.pathname === callbackPath && hasCode) {
+      await this.handleCallback();
+      // Important: strip query params so we don't re-enter handleCallback again
+      try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
+      return; // bail out of connectedCallback so no other startup logic runs now
     }
+  } catch (e) {
+    console.warn('callback guard failed', e);
+  }
 
     try {
       // probeServerBuildAndClearIfChanged is defined earlier in the file
