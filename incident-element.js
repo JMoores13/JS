@@ -351,6 +351,11 @@ class IncidentElement extends HTMLElement {
         localStorage.setItem('oauth_access_token', token);
         localStorage.removeItem('oauth_owner');
       }
+        // mark completion time so other tabs know auth completed
+        try { sessionStorage.setItem('oauth_completed_at', String(Date.now())); } catch (e) {}
+        
+        // Remove OAuth query from URL immediately so connectedCallback won't re-run callback logic
+        try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
 
       const expiresIn = Number(tokenJson.expires_in || 0);
       if (expiresIn > 0) {
