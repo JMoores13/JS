@@ -438,8 +438,6 @@ class IncidentElement extends HTMLElement {
   
     if (location.pathname === callbackPath && hasCode) {
       await this.handleCallback();
-      // Important: strip query params so we don't re-enter handleCallback again
-      try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
       return; // bail out of connectedCallback so no other startup logic runs now
     }
   } catch (e) {
