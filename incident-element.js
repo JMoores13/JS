@@ -501,11 +501,6 @@ class IncidentElement extends HTMLElement {
       this._cachedUserRoles = [];
       this.refreshAuthState().catch(e => console.warn('initial refreshAuthState failed', e));
 
-    // in connectedCallback: replace the probe block with this simple guard
-    const callbackPath = new URL(OAUTH2.redirectUri).pathname;
-    const urlParams = new URL(window.location.href).searchParams;
-    const hasCode = urlParams.has('code');
-
     this._onWindowMessage = (ev) => {
       try {
         // ensure message is from same origin and expected shape
@@ -522,12 +517,6 @@ class IncidentElement extends HTMLElement {
       } catch (e) { console.warn('message handler error', e); }
     };
     window.addEventListener('message', this._onWindowMessage, false);
-
-    if (location.pathname === callbackPath && hasCode) {
-      // run the callback handler and stop further startup logic for this run
-      await this.handleCallback();
-      return;
-    }
 
     this.innerHTML = `
       <style>
