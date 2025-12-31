@@ -273,6 +273,8 @@ class IncidentElement extends HTMLElement {
       try {
         const completedAt = Number(sessionStorage.getItem('oauth_completed_at') || 0);
         if (Date.now() - completedAt < 5000){
+          // Clean the URL so the guard won’t re-trigger
+          try { history.replaceState(null, '', '/web/incident-reporting-tool/'); } catch (e) {}
           return;
         }
         const url = new URL(location.href);
