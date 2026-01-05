@@ -5,9 +5,6 @@ class IncidentMapElement extends HTMLElement {
 
 connectedCallback() {
   this.innerHTML = `
-    <link rel="stylesheet"
-    href="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css" />
-    <script src="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js"></script>  
     <style>
       #map { 
         height: 500px; 
