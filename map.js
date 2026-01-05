@@ -80,16 +80,17 @@ connectedCallback() {
       }
       if (!IncidentMapElement.fullscreenLoaded) {
         IncidentMapElement.fullscreenLoaded = true;
-  
+
         const fsCSS = document.createElement("link");
         fsCSS.rel = "stylesheet";
-        fsCSS.href = "https://unpkg.com/leaflet.fullscreen/Control.FullScreen.css";
+        fsCSS.href = "https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css";
         document.head.appendChild(fsCSS);
-  
-        await new Promise((resolve) => {
+
+        await new Promise((resolve, reject) => {
           const fsScript = document.createElement("script");
-          fsScript.src = "https://unpkg.com/leaflet.fullscreen/Control.FullScreen.js";
+          fsScript.src = "https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js";
           fsScript.onload = resolve;
+          fsScript.onerror = () => reject(new Error('Failed to load fullscreen plugin'));
           document.head.appendChild(fsScript);
         });
       }
@@ -150,13 +151,18 @@ dmsToDecimal(dms) {
 
       container.innerHTML = '';
 
-      this._map = L.map(this.querySelector("#map"),{ 
-        zoomControl: false,
-        fullscreenControl: true, 
-        fullscreenControlOptions: {
-          position: 'topright'
-        }
-      }).setView([56.1304, -100.3468], 3);
+      const pluginReady = !!(L && L.Map && L.Map.prototype && typeof L.Map.prototype.toggleFullscreen === 'function');
+
+      if (!pluginReady) {
+        console.warn('Fullscreen plugin not available; creating map without fullscreen control');
+        this._map = L.map(container, { zoomControl: false }).setView([56.1304, -100.3468], 3);
+      } else {
+        this._map = L.map(container, {
+          zoomControl: false,
+          fullscreenControl: true,
+          fullscreenControlOptions: { position: 'topright' }
+        }).setView([56.1304, -100.3468], 3);
+      }
       
       // Add zoom control back at top-left
       L.control.zoom({ position: 'topleft' }).addTo(this._map);
