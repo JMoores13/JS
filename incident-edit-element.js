@@ -379,7 +379,7 @@ class IncidentEditElement extends HTMLElement {
       .editor-button { background-color: #0b5fff; color: white; border: none; padding: 0.5em 1em; border-radius: 4px; margin: 1em 0; }
       .delete-btn { background: none; border: none; color: #82aaff; text-decoration: none; cursor: pointer; padding: 0; }
       .delete-btn:hover { text-decoration: underline; }
-      .delete-btn:active { color: #82aaff; }
+      .delete-btn:active { color: #0b5fff; }
       .comment-body { margin-top: 0.25em; padding-left: 1em; font-size: 1em; }
       .comment-title { font-size: 1em; font-weight: bold; }
       .incident-title { font-size: 1.1em; font-weight: bold; margin-bottom: 0.5em; }
@@ -387,7 +387,7 @@ class IncidentEditElement extends HTMLElement {
       .incident-description { margin-top: 0.5em; }
       .incident-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em 1em; }
       .incident-grid div { display: flex; flex-direction: column; }
-      .toggle-link { cursor: pointer; color: #82aaff; text-decoration: none; }
+      .toggle-link { cursor: pointer; color: #0b5fff; text-decoration: none; }
       .pagination { margin-top: 1em; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
       .page-number { margin: 0 0.25em; padding: 0.4em 0.8em; background: #f0f0f0; border: 1px solid #ccc; cursor: pointer; }
       .active-page { background: #007bff; color: white; font-weight: bold; }
