@@ -160,6 +160,9 @@ dmsToDecimal(dms) {
       
       // Add zoom control back at top-left
       L.control.zoom({ position: 'topleft' }).addTo(this._map);
+      L.control.fullscreen({position: 'topright'}).addTo(this._map);
+
+
       
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
