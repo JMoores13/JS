@@ -447,21 +447,8 @@ class IncidentElement extends HTMLElement {
     }
 }
   
-  async connectedCallback() {
+async connectedCallback() {
     interceptLogoutLinks();
-
-  try {
-    const callbackPath = new URL(OAUTH2.redirectUri).pathname;
-    const urlParams = new URL(window.location.href).searchParams;
-    const hasCode = urlParams.has('code');
-  
-    if (location.pathname === callbackPath && hasCode) {
-      await this.handleCallback();
-      return; // bail out of connectedCallback so no other startup logic runs now
-    }
-  } catch (e) {
-    console.warn('callback guard failed', e);
-  }
 
     try {
       // probeServerBuildAndClearIfChanged is defined earlier in the file
@@ -561,10 +548,20 @@ class IncidentElement extends HTMLElement {
       <div class="search-bar">
         <input type="text" id="search-input" placeholder="Search"/>
       </div>
-      <div id="incident-list"></div>
+      <div id="incident-list"><p>Loading incidents…</p></div>
       <div id="global-edit-button"></div>
     `;
 
+    try {
+      const searchInput = this.querySelector("#search-input");
+      if (searchInput) {
+        searchInput.addEventListener("input", (e) => {
+          this.searchQuery = e.target.value;
+          this.currentPage = 0;
+          try { this.renderList(); } catch (err) { console.warn('renderList failed from search input', err); }
+        });
+      }
+    } catch (e) { console.warn('search input hookup failed', e); }
   
     this.querySelector("#search-input").addEventListener("input", (e) => {
       this.searchQuery = e.target.value;
