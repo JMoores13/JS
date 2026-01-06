@@ -1,7 +1,7 @@
 class IncidentMapElement extends HTMLElement {
   constructor() {
     super();
-  }
+    }
 
 connectedCallback() {
   this.innerHTML = `
@@ -97,15 +97,15 @@ connectedCallback() {
     }
   
   getMarkerIcon(color) {
-  return new L.Icon({
-    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-    shadowUrl: "https://unpkg.com/leaflet/dist/images/marker-shadow.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-  });
-}
+    return new L.Icon({
+      iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+      shadowUrl: "https://unpkg.com/leaflet/dist/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+  }
 
 dmsToDecimal(dms) {
   if (!dms) return NaN;
@@ -134,104 +134,104 @@ dmsToDecimal(dms) {
   return decimal;
 }
 
-  async renderMap() {
+async renderMap() {
 
-    // Reset map container to avoid duplicate maps on re-render
-    const container = this.querySelector('#map');
-    if (!container) return;
-    container.innerHTML = ''; // clear any previous content
+  // Reset map container to avoid duplicate maps on re-render
+  const container = this.querySelector('#map');
+  if (!container) return;
+  container.innerHTML = ''; // clear any previous content
 
-    if (this._map) {
-      this._map.remove();
-      this._map = null;
+  if (this._map) {
+    this._map.remove();
+    this._map = null;
+  }
+
+  try {
+    if (!window.L) throw new Error('Leaflet not loaded');
+
+    container.innerHTML = '';
+
+    const pluginReady = !!(L && L.Map && L.Map.prototype && typeof L.Map.prototype.toggleFullscreen === 'function');
+
+    if (!pluginReady) {
+      console.warn('Fullscreen plugin not available; creating map without fullscreen control');
+      this._map = L.map(container, { zoomControl: false }).setView([56.1304, -100.3468], 3);
+    } else {
+      this._map = L.map(container, {
+        zoomControl: false,
+        fullscreenControl: true,
+        fullscreenControlOptions: { position: 'topright' }
+      }).setView([56.1304, -100.3468], 3);
     }
+    
+    // Add zoom control back at top-left
+    L.control.zoom({ position: 'topleft' }).addTo(this._map);
+    
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
+    }).addTo(this._map);
 
-    try {
-      if (!window.L) throw new Error('Leaflet not loaded');
+    const res = await fetch("/o/c/incidents");
+    const data = await res.json();
+    const bounds = [];
 
-      container.innerHTML = '';
+    const filterSet = this.statusFilterSet;
 
-      const pluginReady = !!(L && L.Map && L.Map.prototype && typeof L.Map.prototype.toggleFullscreen === 'function');
-
-      if (!pluginReady) {
-        console.warn('Fullscreen plugin not available; creating map without fullscreen control');
-        this._map = L.map(container, { zoomControl: false }).setView([56.1304, -100.3468], 3);
-      } else {
-        this._map = L.map(container, {
-          zoomControl: false,
-          fullscreenControl: true,
-          fullscreenControlOptions: { position: 'topright' }
-        }).setView([56.1304, -100.3468], 3);
+    data.items.forEach((item) => {
+      let lat = this.dmsToDecimal(item.latitudeDMS);
+      let lng = this.dmsToDecimal(item.longitudeDMS);
+      
+      // If DMS not provided or invalid, try MGRS
+      if ((isNaN(lat) || isNaN(lng)) && window.mgrs && item.mGRS) {
+        try {
+          const [lngVal, latVal] = window.mgrs.toPoint(item.mGRS);
+          if (!isNaN(latVal) && !isNaN(lngVal)) {
+            lat = latVal;
+            lng = lngVal;
+          }
+        } catch (e) {
+          console.warn("Invalid MGRS for incident:", item.mGRS);
+        }
       }
       
-      // Add zoom control back at top-left
-      L.control.zoom({ position: 'topleft' }).addTo(this._map);
+      // If still invalid, skip
+      if (isNaN(lat) || isNaN(lng)) return;
+
+      const statusKey = item.statusOfIncident?.key?.toLowerCase();
+
+      if (filterSet && (!statusKey || !filterSet.has(statusKey))) return;
+
+      let color = "blue"; // default
       
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a>'
-      }).addTo(this._map);
+      switch (statusKey) {
+        case "active":
+          color = "green";
+          break;
+        case "inprogress":
+          color = "orange";
+          break;
+        case "inactive":
+          color = "red";
+          break;
+        case "open":
+          color = "blue";
+          break;
+      }
 
-      const res = await fetch("/o/c/incidents");
-      const data = await res.json();
-      const bounds = [];
+      const label = item.incident || "Unnamed";
+      const url = `/web/incident-reporting-tool/edit-incident?objectEntryId=${item.id}`;
 
-      const filterSet = this.statusFilterSet;
+      const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(color) }).addTo(this._map);
+      marker.bindPopup(`<a href="${url}" target="_self">${label}</a>`);
+      bounds.push([lat, lng]);
+    });
 
-      data.items.forEach((item) => {
-        let lat = this.dmsToDecimal(item.latitudeDMS);
-        let lng = this.dmsToDecimal(item.longitudeDMS);
-        
-        // If DMS not provided or invalid, try MGRS
-        if ((isNaN(lat) || isNaN(lng)) && window.mgrs && item.mGRS) {
-          try {
-            const [lngVal, latVal] = window.mgrs.toPoint(item.mGRS);
-            if (!isNaN(latVal) && !isNaN(lngVal)) {
-              lat = latVal;
-              lng = lngVal;
-            }
-          } catch (e) {
-            console.warn("Invalid MGRS for incident:", item.mGRS);
-          }
-        }
-        
-        // If still invalid, skip
-        if (isNaN(lat) || isNaN(lng)) return;
-
-        const statusKey = item.statusOfIncident?.key?.toLowerCase();
-
-        if (filterSet && (!statusKey || !filterSet.has(statusKey))) return;
-
-        let color = "blue"; // default
-        
-        switch (statusKey) {
-          case "active":
-            color = "green";
-            break;
-          case "inprogress":
-            color = "orange";
-            break;
-          case "inactive":
-            color = "red";
-            break;
-          case "open":
-            color = "blue";
-            break;
-        }
-
-        const label = item.incident || "Unnamed";
-        const url = `/web/incident-reporting-tool/edit-incident?objectEntryId=${item.id}`;
-
-        const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(color) }).addTo(this._map);
-        marker.bindPopup(`<a href="${url}" target="_self">${label}</a>`);
-        bounds.push([lat, lng]);
-      });
-
-      
-    } catch (e) {
-      console.error("Failed to load incidents:", e);
-      this.querySelector("#map").innerHTML = "<p>Error loading map data</p>";
-    }
+    
+  } catch (e) {
+    console.error("Failed to load incidents:", e);
+    this.querySelector("#map").innerHTML = "<p>Error loading map data</p>";
   }
+}
 }
 
 customElements.define("incident-map", IncidentMapElement);
