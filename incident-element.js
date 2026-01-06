@@ -451,11 +451,11 @@ async connectedCallback() {
     interceptLogoutLinks();
 
     try {
-      // probeServerBuildAndClearIfChanged is defined earlier in the file
-      await probeServerBuildAndClearIfChanged();
-    } catch (e) {
-      console.warn('server probe failed (initial):', e);
-    }
+      // Run probe asynchronously so it cannot block rendering or callback handling
+      setTimeout(() => {
+        probeServerBuildAndClearIfChanged().catch(e => console.warn('server probe failed (deferred):', e));
+      }, 0);
+    } catch (e) { console.warn('scheduling probe failed', e); }
 
     try {
       const generic = localStorage.getItem('oauth_access_token');
@@ -497,14 +497,23 @@ async connectedCallback() {
 
     // ensure stored owner is validated before continuing startup
     try {
-      await validateStoredOwner().catch(e => console.warn('validateStoredOwner failed', e));
+     try {
+        setTimeout(() => {
+          validateStoredOwner().catch(e => console.warn('validateStoredOwner failed (deferred)', e));
+        }, 0);
+      } catch (e) { console.warn('scheduling validateStoredOwner failed', e); }  
     } catch (e) {
       console.warn('validateStoredOwner top-level catch', e);
     }
 
       this._cachedUserRoles = [];
-      this.refreshAuthState().catch(e => console.warn('initial refreshAuthState failed', e));
+      try {
+        setTimeout(() => {
+          this.refreshAuthState().catch(e => console.warn('initial refreshAuthState failed (deferred)', e));
+        }, 0);
+      } catch (e) { console.warn('scheduling refreshAuthState failed', e); }
 
+      
     this._onWindowMessage = (ev) => {
       try {
         // ensure message is from same origin and expected shape
@@ -522,6 +531,7 @@ async connectedCallback() {
     };
     window.addEventListener('message', this._onWindowMessage, false);
 
+    try {
     this.innerHTML = `
       <style>
       .incident-entry { padding: 0.75em 0; border-bottom: 1px solid #ccc; }
@@ -551,6 +561,7 @@ async connectedCallback() {
       <div id="incident-list"><p>Loading incidents…</p></div>
       <div id="global-edit-button"></div>
     `;
+    } catch (e) { console.warn('initial render failed', e); }
 
     try {
       const searchInput = this.querySelector("#search-input");
