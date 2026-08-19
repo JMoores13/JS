@@ -150,7 +150,7 @@ class IncidentMapElement extends HTMLElement {
       this._map = L.map(container, { 
         zoomControl: false,
         worldCopyJump: true,  // Wraps markers when scrolling across the equator/dateline
-        attributioncontrol: false,
+        attributionControl: false,
         minZoom: 2 
       }).setView([20, 0], 2);
       L.control.zoom({ position: 'topleft' }).addTo(this._map);
