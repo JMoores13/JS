@@ -7,7 +7,7 @@ connectedCallback() {
   this.innerHTML = `
     <style>
       #map { 
-        height: 90vh; 
+        height: 80vh; 
         width: 100%;
         border: 0.2em solid rgb(45, 90, 171);
         border-radius: 0px; 
@@ -155,13 +155,13 @@ async renderMap() {
 
     if (!pluginReady) {
       console.warn('Fullscreen plugin not available; creating map without fullscreen control');
-      this._map = L.map(container, { zoomControl: false }).setView([56.1304, -100.3468], 3);
+      this._map = L.map(container, { zoomControl: false }).setView([20, 0], 2);
     } else {
-      this._map = L.map(container, {
+      this._map = L.map(container, { 
         zoomControl: false,
-        fullscreenControl: true,
-        fullscreenControlOptions: { position: 'topright' }
-      }).setView([56.1304, -100.3468], 3);
+        worldCopyJump: true,  // Wraps markers when scrolling across the equator/dateline
+        minZoom: 2 
+      }).setView([20, 0], 2);
     }
     
     // Add zoom control back at top-left

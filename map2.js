@@ -7,7 +7,7 @@ class IncidentMapElement extends HTMLElement {
     this.innerHTML = `
       <style>
         #map { 
-          height: 90vh; 
+          height: 80vh; 
           width: 100%;
           border: 0.2em solid rgb(45, 90, 171);
           border-radius: 0px; 
@@ -139,13 +139,17 @@ class IncidentMapElement extends HTMLElement {
     try {
       if (!window.L) throw new Error('Leaflet not loaded');
 
-      this._map = L.map(container, { zoomControl: false }).setView([56.1304, -100.3468], 3);
-
+      this._map = L.map(container, { 
+        zoomControl: false,
+        worldCopyJump: true,  // Wraps markers when scrolling across the equator/dateline
+        minZoom: 2 
+      }).setView([20, 0], 2);
       L.control.zoom({ position: 'topleft' }).addTo(this._map);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        minZoom: 2,
+        maxZoom: 10,
+        noWrap: false,
       }).addTo(this._map);
 
       const res = await fetch("/o/c/incidents");
