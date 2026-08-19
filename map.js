@@ -7,7 +7,7 @@ connectedCallback() {
   this.innerHTML = `
     <style>
       #map { 
-        height: 500px; 
+        height: 1rem; 
         width: 100%;
         border: 0.2em solid rgb(45, 90, 171);
         border-radius: 0px; 
