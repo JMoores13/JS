@@ -96,7 +96,7 @@ class IncidentMapElement extends HTMLElement {
         </svg>
     `;
 
-    return L.divIcon({
+    const icon = L.divIcon({
         className: 'custom-map-marker',
         html: svgPin,
         iconSize: [18, 30],
@@ -206,7 +206,7 @@ class IncidentMapElement extends HTMLElement {
         }
 
         const label = item.incident || "Unnamed";
-        const url = `/web/incident-reporting-tool/edit-incident?objectEntryId=${item.id}`;
+        const url = item.friendlyUrlPath ? item.friendlyUrlPath : `/o/c/incidents/${item.id}`;
 
         const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(colour) });
         marker.bindPopup(`<strong>${label}</strong>`, { closeButton: false });
