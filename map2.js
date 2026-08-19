@@ -7,7 +7,7 @@ class IncidentMapElement extends HTMLElement {
     this.innerHTML = `
       <style>
         #map { 
-          height: 80vh; 
+          height: 70vh; 
           width: 100%;
           border: 0.2em solid rgb(45, 90, 171);
           border-radius: 0px; 
@@ -143,7 +143,7 @@ class IncidentMapElement extends HTMLElement {
         zoomControl: false,
         worldCopyJump: true,  // Wraps markers when scrolling across the equator/dateline
         minZoom: 2 
-      }).setView([20, 0], 2);
+      }).setView([35, 0], 3);
       L.control.zoom({ position: 'topleft' }).addTo(this._map);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {

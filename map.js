@@ -7,7 +7,7 @@ connectedCallback() {
   this.innerHTML = `
     <style>
       #map { 
-        height: 80vh; 
+        height: 75vh; 
         width: 100%;
         border: 0.2em solid rgb(45, 90, 171);
         border-radius: 0px; 
@@ -161,7 +161,7 @@ async renderMap() {
         zoomControl: false,
         worldCopyJump: true,  // Wraps markers when scrolling across the equator/dateline
         minZoom: 2 
-      }).setView([20, 0], 2);
+      }).setView([35, 0], 3);
     }
     
     // Add zoom control back at top-left
