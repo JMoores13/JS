@@ -91,7 +91,7 @@ class IncidentMapElement extends HTMLElement {
         return this._iconCache[colour];
     }
     const svgPin = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="18" height="30">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="18" height="30" style="pointer-events: none;">
         <path fill="${colour}" stroke="#FFFFFF" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 9 12 24 12 24s12-15 12-24c0-6.63-5.37-12-12-12zm0 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
         </svg>
     `;
