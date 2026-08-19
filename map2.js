@@ -207,7 +207,7 @@ class IncidentMapElement extends HTMLElement {
 
         const label = item.incident || "Unnamed";
         const url = item.friendlyUrlPath || `/c/incidents/${item.id}`;
-        
+
         const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(colour) });
         marker.bindPopup(`<strong>${label}</strong>`, { closeButton: false });
 
@@ -219,9 +219,15 @@ class IncidentMapElement extends HTMLElement {
         });
 
         marker.on('click', () => {
-          console.log("Liferay Object Data:", item);
-          console.log("Navigating to URL:", url);
-          window.location.assign(url);
+          console.log("--- DEBUGGING MARKER CLICK ---");
+          console.log("Full Item Data:", item);
+          console.log("Friendly URL Path:", item.friendlyUrlPath);
+          console.log("Target URL being used:", url);
+
+          // Pause navigation for 3 seconds so you can actually read the console logs
+          setTimeout(() => {
+            window.location.assign(url);
+          }, 3000);
         });
 
         markerGroup.addLayer(marker);
