@@ -219,6 +219,8 @@ class IncidentMapElement extends HTMLElement {
         });
 
         marker.on('click', () => {
+          console.log("Liferay Object Data:", item);
+          console.log("Navigating to URL:", url);
           window.location.assign(url);
         });
 
