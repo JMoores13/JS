@@ -206,8 +206,10 @@ class IncidentMapElement extends HTMLElement {
         }
 
         const label = item.incident || "Unnamed";
-        const url = item.friendlyUrlPath || `/c/incidents/${item.id}`;
-
+        const url = item.friendlyUrlPath 
+            ? item.friendlyUrlPath 
+            : (item.externalReferenceCode ? `/l/by-erc/${item.externalReferenceCode}` : null);
+            
         const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(colour) });
         marker.bindPopup(`<strong>${label}</strong>`, { closeButton: false });
 
