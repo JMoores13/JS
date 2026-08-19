@@ -1,6 +1,7 @@
 class IncidentMapElement extends HTMLElement {
   constructor() {
     super();
+    this._iconCache = {};
   }
 
   connectedCallback() {
@@ -84,21 +85,27 @@ class IncidentMapElement extends HTMLElement {
     }
   }
 
-  getMarkerIcon(color) {
-  const svgPin = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="25" height="41">
-      <path fill="${color}" stroke="#FFFFFF" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 9 12 24 12 24s12-15 12-24c0-6.63-5.37-12-12-12zm0 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
-    </svg>
-  `;
+  getMarkerIcon(colour) {
+    if (this._iconCache[colour]) {
+        return this._iconCache[colour];
+    }
+    const svgPin = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="18" height="30">
+        <path fill="${colour}" stroke="#FFFFFF" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 9 12 24 12 24s12-15 12-24c0-6.63-5.37-12-12-12zm0 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+        </svg>
+    `;
 
-  return L.divIcon({
-    className: 'custom-map-marker',
-    html: svgPin,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34]
-  });
-}
+    return L.divIcon({
+        className: 'custom-map-marker',
+        html: svgPin,
+        iconSize: [18, 30],
+        iconAnchor: [9, 30],
+        popupAnchor: [0, -28]
+    });
+
+    this._iconCache[colour] = icon;
+    return icon;
+  }
 
   dmsToDecimal(dms) {
     if (!dms) return NaN;
@@ -157,6 +164,8 @@ class IncidentMapElement extends HTMLElement {
 
       const filterSet = this.statusFilterSet;
 
+      const markerGroup = L.layerGroup();
+
       data.items.forEach((item) => {
         let lat = this.dmsToDecimal(item.latitudeDMS);
         let lng = this.dmsToDecimal(item.longitudeDMS);
@@ -178,28 +187,43 @@ class IncidentMapElement extends HTMLElement {
         const statusKey = item.statusOfIncident?.key?.toLowerCase();
         if (filterSet && (!statusKey || !filterSet.has(statusKey))) return;
 
-        let color = "blue";
+        let colour = "blue";
         switch (statusKey) {
           case "active":
-            color = "green";
+            colour = "green";
             break;
           case "inprogress":
-            color = "orange";
+            colour = "orange";
             break;
           case "inactive":
-            color = "red";
+            colour = "red";
             break;
           case "open":
-            color = "blue";
+            colour = "blue";
             break;
         }
 
         const label = item.incident || "Unnamed";
         const url = `/web/incident-reporting-tool/edit-incident?objectEntryId=${item.id}`;
 
-        const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(color) }).addTo(this._map);
-        marker.bindPopup(`<a href="${url}" target="_self">${label}</a>`);
+        const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(colour) });
+        marker.bindPopup(`<strong>${label}</strong>`);
+
+        marker.on('mouseover', function () {
+          this.openPopup();
+        });
+        marker.on('mouseout', function () {
+          this.closePopup();
+        });
+
+        marker.on('click', () => {
+          window.location.href = url;
+        });
+
+        markerGroup.addLayer(marker);
       });
+
+      markerGroup.addTo(this._map);
 
     } catch (e) {
       console.error("Failed to load incidents:", e);
