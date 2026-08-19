@@ -219,7 +219,7 @@ class IncidentMapElement extends HTMLElement {
         });
 
         marker.on('click', () => {
-          window.location.href = url;
+          window.location.assign(url);
         });
 
         markerGroup.addLayer(marker);
@@ -234,4 +234,6 @@ class IncidentMapElement extends HTMLElement {
   }
 }
 
-customElements.define("incident-map", IncidentMapElement);
+if (!customElements.get("incident-map")) {
+  customElements.define("incident-map", IncidentMapElement);
+}
