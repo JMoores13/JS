@@ -14,6 +14,7 @@ class IncidentMapElement extends HTMLElement {
           border-radius: 0px; 
         }
         .leaflet-container { font: inherit; }
+        .leaflet-control-attribution { display: none !important; }
         .map-toolbar { margin: 0.5em 0; display: flex; gap: 0.5em; align-items: center; }
         .custom-map-marker { background: transparent !important; border: none !important; }
       </style>
