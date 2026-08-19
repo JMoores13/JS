@@ -72,12 +72,12 @@ class IncidentMapElement extends HTMLElement {
     if (!window.L) {
       const leafletCSS = document.createElement("link");
       leafletCSS.rel = "stylesheet";
-      leafletCSS.href = `${DM_BASE}/<leaflet-css-1>`;
+      leafletCSS.href = `${DM_BASE}/leaflet-css-1`;
       document.head.appendChild(leafletCSS);
 
       await new Promise((resolve) => {
         const script = document.createElement("script");
-        script.src = `${DM_BASE}/<leaflet-js-2>`;
+        script.src = `${DM_BASE}/leaflet-js-2`;
         script.onload = resolve;
         document.head.appendChild(script);
       });
