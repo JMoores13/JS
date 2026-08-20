@@ -218,15 +218,7 @@ class IncidentMapElement extends HTMLElement {
         });
 
         marker.on('click', () => {
-          console.log("--- DEBUGGING MARKER CLICK ---");
-          console.log("Full Item Data:", item);
-          console.log("Friendly URL Path:", item.friendlyUrlPath);
-          console.log("Target URL being used:", url);
-
-          // Pause navigation for 3 seconds so you can actually read the console logs
-          setTimeout(() => {
-            window.location.assign(url);
-          }, 3000);
+          window.location.assign(`/web/guest/incident-detail-viewer?id=${item.id}`);
         });
 
         markerGroup.addLayer(marker);
