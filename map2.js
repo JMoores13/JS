@@ -40,6 +40,33 @@
           }
           .file-upload-label:hover { color: #004499; text-decoration: none;  }
           #file-uploader { display: none; }
+
+          //Tooltip 
+          .tooltip-cont {
+            position: relative;
+            display: inline-block;
+          }
+          .tooltip-cont .tooltip {
+            visibility: hidden;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            position: absolute;
+            bottom: 125%; 
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+          }
+          .tooltip-cont:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+          }
         </style>
         <div class="map-toolbar">
           <div>
@@ -52,9 +79,10 @@
               <option value="open">Open</option>
             </select>
           </div>
-          <div>
+          <div class="tooltip-cont">
             <label for="file-uploader" class="file-upload-label">
-              <span title="KML(.kml), GeoJSON(.json/.geojson), and Shapefiles(.zip) accepted">Upload Map Data</span>
+              <span>Upload Map Data</span>
+              <span class="tooltip">KML(.kml), GeoJSON(.json/.geojson), and Shapefiles(.zip) accepted</span>
             </label>
             <input type="file" id="file-uploader" accept=".kml,.json,.geojson,.zip">
           </div>
