@@ -52,7 +52,7 @@
               <option value="open">Open</option>
             </select>
           </div>
-          <div class="tooltip-cont">
+          <div>
             <label for="file-uploader" class="file-upload-label">
               <span title="KML(.kml), GeoJSON(.json/.geojson), and Shapefiles(.zip) Accepted">Upload Map Data</span>
             </label>
