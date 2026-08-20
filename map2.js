@@ -69,17 +69,17 @@ class IncidentMapElement extends HTMLElement {
   }
 
   async loadLeaflet() {
-    const DM_BASE = "/documents/d/incident-reporting-tool";
+    const DM_BASE = "/documents/d/guest";
 
     if (!window.L) {
       const leafletCSS = document.createElement("link");
       leafletCSS.rel = "stylesheet";
-      leafletCSS.href = `${DM_BASE}/leaflet-css-1`;
+      leafletCSS.href = `${DM_BASE}/leaflet-css`;
       document.head.appendChild(leafletCSS);
 
       await new Promise((resolve) => {
         const script = document.createElement("script");
-        script.src = `${DM_BASE}/leaflet-js-2`;
+        script.src = `${DM_BASE}/leaflet-js-1`;
         script.onload = resolve;
         document.head.appendChild(script);
       });
