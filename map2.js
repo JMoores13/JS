@@ -30,17 +30,15 @@
           }
           .custom-map-marker { background: transparent !important; border: none !important; }
           .file-upload-label {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3em;
-            padding: 0.3em 0.6em;
-            background: #2d5aac;
-            color: white;
-            border-radius: 4px;
+            background: transparent;
+            border: none;
+            padding: 0;
+            color: #0066cc;
+            text-decoration: underline;
             cursor: pointer;
-            font-size: 0.9em;
+            font: inherit;
           }
-          .file-upload-label:hover { background: #1e3d75; }
+          .file-upload-label:hover { color: #004499; text-decoration: none;  }
           #file-uploader { display: none; }
         </style>
         <div class="map-toolbar">
@@ -136,27 +134,27 @@
       const fileName = file.name.toLowerCase();
 
       try {
-        let geojson = null;
+        let MapPoint = null;
 
         if (fileName.endsWith('.kml')) {
           const text = await file.text();
-          geojson = this.parseKmlToGeoJSON(text);
+          MapPoint = this.parseKmlToGeoJSON(text);
 
         } else if (fileName.endsWith('.geojson') || fileName.endsWith('.json')) {
           const text = await file.text();
-          geojson = JSON.parse(text);
+          MapPoint = JSON.parse(text);
 
         } else if (fileName.endsWith('.zip')) {
           const buffer = await file.arrayBuffer();
-          geojson = await this.parseShapefileZipNative(buffer);
+          MapPoint = await this.parseShapefileZipNative(buffer);
 
         } else {
           alert("Unsupported file format.");
           return;
         }
 
-        if (geojson && geojson.features && geojson.features.length > 0) {
-          this.addGeoJsonToMap(geojson);
+        if (MapPoint && MapPoint.features && MapPoint.features.length > 0) {
+          this.addGeoJsonToMap(MapPoint);
         } else {
           alert("No valid features found in file.");
         }
@@ -168,7 +166,7 @@
       }
     }
 
-    // Native KML Parser using Browser DOMParser
+    // Native KML Parser using DOMParser
     parseKmlToGeoJSON(kmlText) {
       const xml = new DOMParser().parseFromString(kmlText, 'text/xml');
       const features = [];
@@ -231,7 +229,7 @@
 
         const shapeType = view.getInt32(offset, true);
         
-        
+        // Point SHP
         if (shapeType === 1) {
           const x = view.getFloat64(offset + 4, true);
           const y = view.getFloat64(offset + 12, true);
@@ -242,7 +240,7 @@
           });
         } 
        
-
+        // Line SHP
         else if (shapeType === 3 || shapeType === 5) {
           const numParts = view.getInt32(offset + 36, true);
           const numPoints = view.getInt32(offset + 40, true);
@@ -290,7 +288,7 @@
       let offset = 0;
 
       while (offset < view.byteLength - 30) {
-        // Look for Local File Header Signature (0x04034b50)
+
         if (view.getUint32(offset, true) === 0x04034b50) {
           const compMethod = view.getUint16(offset + 8, true);
           const compSize = view.getUint32(offset + 18, true);
@@ -358,7 +356,16 @@
               }
             }
             popupContent += `</div>`;
-            layer.bindPopup(popupContent);
+
+            layer.bindPopup(popupContent, { closeButton: false });
+
+            layer.on('mouseover', function() {
+              this.openPopup();
+            });
+
+            layer.on('mouseout', function() {
+              this.closePopup();
+            });
           }
         }
       });
