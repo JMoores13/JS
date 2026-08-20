@@ -41,7 +41,7 @@
           .file-upload-label:hover { color: #004499; text-decoration: none;  }
           #file-uploader { display: none; }
 
-          //Tooltip 
+          /* tooltip */ 
           .tooltip-cont {
             position: relative;
             display: inline-block;
@@ -58,10 +58,11 @@
             bottom: 125%; 
             left: 50%;
             transform: translateX(-50%);
-            z-index: 1;
+            z-index: 1000;
             white-space: nowrap;
             opacity: 0;
             transition: opacity 0.2s ease-in-out;
+            pointer-events: none;
           }
           .tooltip-cont:hover .tooltip {
             visibility: visible;
