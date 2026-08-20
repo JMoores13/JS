@@ -82,8 +82,8 @@
           <div class="tooltip-cont">
             <label for="file-uploader" class="file-upload-label">
               <span>Upload Map Data</span>
-              <span class="tooltip">KML(.kml), GeoJSON(.json/.geojson), and Shapefiles(.zip) accepted</span>
             </label>
+            <span class="tooltip">KML(.kml), GeoJSON(.json/.geojson), and Shapefiles(.zip) accepted</span>
             <input type="file" id="file-uploader" accept=".kml,.json,.geojson,.zip">
           </div>
         </div>
