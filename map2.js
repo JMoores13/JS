@@ -208,6 +208,8 @@ class IncidentMapElement extends HTMLElement {
         const label = item.incident || "Unnamed";
         const url = `/incident-detail?id=${item.id}`;
         
+        const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(colour) });
+
         marker.bindPopup(`<strong>${label}</strong>`, { closeButton: false });
 
         marker.on('mouseover', function () {
