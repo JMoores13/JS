@@ -120,6 +120,96 @@
       return icon;
     }
 
+    parseKmlToGeoJSON(kmlText) {
+        const xml = new DOMParser().parseFromString(kmlText, 'text/xml');
+        const features = [];
+
+        const placemarks = xml.querySelectorAll('Placemark');
+        placemarks.forEach((placemark) => {
+            const name = placemark.querySelector('name')?.textContent || '';
+            const description = placemark.querySelector('description')?.textContent || '';
+            
+            let geometry = null;
+
+            const point = placemark.querySelector('Point coordinates');
+            if (point) {
+            const coords = point.textContent.trim().split(',').map(Number);
+            geometry = {
+                type: 'Point',
+                coordinates: [coords[0], coords[1]] // [lng, lat]
+            };
+            }
+
+            const line = placemark.querySelector('LineString coordinates');
+            if (line) {
+            const rawCoords = line.textContent.trim().split(/\s+/);
+            const coordinates = rawCoords.map(c => c.split(',').slice(0, 2).map(Number));
+            geometry = {
+                type: 'LineString',
+                coordinates: coordinates
+            };
+            }
+
+            const poly = placemark.querySelector('Polygon outerBoundaryIs LinearRing coordinates');
+            if (poly) {
+            const rawCoords = poly.textContent.trim().split(/\s+/);
+            const coordinates = rawCoords.map(c => c.split(',').slice(0, 2).map(Number));
+            geometry = {
+                type: 'Polygon',
+                coordinates: [coordinates]
+            };
+            }
+
+            if (geometry) {
+            features.push({
+                type: 'Feature',
+                properties: { name, description },
+                geometry: geometry
+            });
+            }
+        });
+
+        return {
+            type: 'FeatureCollection',
+            features: features
+        };
+    }
+
+    // Native File Upload Handler
+    async handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const fileName = file.name.toLowerCase();
+
+        try {
+            let geojson = null;
+
+            if (fileName.endsWith('.kml')) {
+            const text = await file.text();
+            geojson = this.parseKmlToGeoJSON(text);
+            } else if (fileName.endsWith('.geojson') || fileName.endsWith('.json')) {
+            const text = await file.text();
+            geojson = JSON.parse(text);
+            } else if (fileName.endsWith('.zip')) {
+            // Shapefiles require decoding binary ArrayBuffers (.shp + .dbf)
+            const buffer = await file.arrayBuffer();
+            geojson = await this.parseShapefileZipNative(buffer);
+            }
+
+            if (geojson && geojson.features.length > 0) {
+            this.addGeoJsonToMap(geojson);
+            } else {
+            alert("No valid map features found in file.");
+            }
+        } catch (err) {
+            console.error("Parsing error:", err);
+            alert("Could not process file format.");
+        } finally {
+            event.target.value = '';
+        }
+    }
+
     dmsToDecimal(dms) {
       if (!dms) return NaN;
       let str = String(dms).trim();
