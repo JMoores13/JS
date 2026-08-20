@@ -48,8 +48,8 @@
           }
           .tooltip-cont .tooltip {
             visibility: hidden;
-            background-color: #333;
-            color: #fff;
+            background-color: #000931;
+            color: #dbdada;
             text-align: center;
             padding: 6px 10px;
             border-radius: 4px;
