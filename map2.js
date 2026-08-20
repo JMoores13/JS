@@ -56,7 +56,7 @@
           </div>
           <div>
             <label for="file-uploader" class="file-upload-label">
-              <span>📁 Upload Map Data (.kml, .json, .zip)</span>
+              <span>Upload Map Data (.kml, .json, .zip)</span>
             </label>
             <input type="file" id="file-uploader" accept=".kml,.json,.geojson,.zip">
           </div>
@@ -179,14 +179,13 @@
         const description = placemark.querySelector('description')?.textContent || '';
         let geometry = null;
 
-        // Point
         const point = placemark.querySelector('Point coordinates');
         if (point) {
           const coords = point.textContent.trim().split(',').map(Number);
           geometry = { type: 'Point', coordinates: [coords[0], coords[1]] };
         }
 
-        // LineString
+        
         const line = placemark.querySelector('LineString coordinates');
         if (line) {
           const rawCoords = line.textContent.trim().split(/\s+/);
@@ -194,7 +193,7 @@
           geometry = { type: 'LineString', coordinates: coordinates };
         }
 
-        // Polygon
+        
         const poly = placemark.querySelector('Polygon outerBoundaryIs LinearRing coordinates');
         if (poly) {
           const rawCoords = poly.textContent.trim().split(/\s+/);
@@ -214,7 +213,7 @@
       return { type: 'FeatureCollection', features };
     }
 
-    // Native Binary Shapefile Parser using ArrayBuffer & DataView
+    
     async parseShapefileZipNative(zipBuffer) {
       const shpBuffer = await this.extractFileFromZipNative(zipBuffer, '.shp');
       if (!shpBuffer) throw new Error("No .shp file found inside ZIP archive.");
@@ -224,7 +223,7 @@
       let offset = 100; // Skip 100-byte main header
 
       while (offset < view.byteLength) {
-        // Record Header
+        
         const recordLength = view.getInt32(offset + 4, false) * 2;
         offset += 8;
 
@@ -232,7 +231,7 @@
 
         const shapeType = view.getInt32(offset, true);
         
-        // ShapeType 1 = Point
+        
         if (shapeType === 1) {
           const x = view.getFloat64(offset + 4, true);
           const y = view.getFloat64(offset + 12, true);
@@ -242,7 +241,8 @@
             geometry: { type: 'Point', coordinates: [x, y] }
           });
         } 
-        // ShapeType 3 = PolyLine, ShapeType 5 = Polygon
+       
+
         else if (shapeType === 3 || shapeType === 5) {
           const numParts = view.getInt32(offset + 36, true);
           const numPoints = view.getInt32(offset + 40, true);
@@ -452,7 +452,7 @@
 
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           minZoom: 2,
-          maxZoom: 10,
+          maxZoom: 20,
           noWrap: false,
         }).addTo(this._map);
 
