@@ -54,7 +54,7 @@
           </div>
           <div>
             <label for="file-uploader" class="file-upload-label">
-              <span>Upload Map Data (.kml, .json, .zip)</span>
+              <span title="KML(.kml), GeoJSON(.json/.geojson), and Shapefiles(.zip) accepted">Upload Map Data</span>
             </label>
             <input type="file" id="file-uploader" accept=".kml,.json,.geojson,.zip">
           </div>
