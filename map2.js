@@ -206,7 +206,8 @@ class IncidentMapElement extends HTMLElement {
         }
 
         const label = item.incident || "Unnamed";
-        const url = item.friendlyUrlPath ? item.friendlyUrlPath : `/c/incidents/${item.id}`;        const marker = L.marker([lat, lng], { icon: this.getMarkerIcon(colour) });
+        const url = `/incident-detail?id=${item.id}`;
+        
         marker.bindPopup(`<strong>${label}</strong>`, { closeButton: false });
 
         marker.on('mouseover', function () {
